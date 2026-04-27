@@ -10,7 +10,7 @@ A macOS menu bar app that shows your [Claude AI](https://claude.ai) usage limits
 
 - Live 5-Hour and 7-Day utilization bars with color-coded thresholds (green / orange / red)
 - Reset countdowns with relative time display ("resets in 3 hours")
-- Menu bar label showing the selected window's utilization percentage at a glance
+- Menu bar label showing the selected window's utilization percentage at a glance; the icon is color-coded green / orange / red while the percentage stays in the default system color
 - Subscription badge (Pro, Max 5x, Max 20x, Team, Enterprise)
 - **Pace indicator** — shows current consumption rate (%/hr) and projected time to full; configurable rate window (5/10/15/30 min)
 - **Pace alerts** — toast/sound/banner notification when a window is projected to fill before it resets

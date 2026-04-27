@@ -180,6 +180,16 @@ final class UsageViewModel: ObservableObject {
         UNUserNotificationCenter.current().delegate = notificationDelegate
         requestNotificationPermission()
         checkExistingSession()
+
+        NSApp.publisher(for: \.effectiveAppearance)
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.cachedMenuBarKey = ""
+                self.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Session
@@ -323,30 +333,40 @@ final class UsageViewModel: ObservableObject {
         return "bolt.fill"
     }
 
+    var statusColor: NSColor {
+        guard isAuthenticated, usage != nil else { return .labelColor }
+        let util = displayedUtilization
+        if util >= 80 { return .systemRed }
+        if util >= 50 { return .systemOrange }
+        return .systemGreen
+    }
+
     /// Composed SF Symbol + text image used as the menu bar label.
     ///
     /// `MenuBarExtra` label blocks do not reliably render `HStack { Image; Text }` or
     /// `Label(text, systemImage:)` — the icon renders but the text is clipped or hidden.
-    /// The only reliable approach is to composite both elements into a single `NSImage`
-    /// with `isTemplate = true` for correct dark/light mode inversion.
-    /// The result is cached until either the icon name or the text changes.
+    /// The only reliable approach is to composite both elements into a single `NSImage`.
+    /// The result is cached until the icon, text, color, or system appearance changes.
     var menuBarImage: NSImage {
         let icon = statusIcon
         let text = statusText
-        let key = icon + text
+        let color = statusColor
+        let appearance = NSApp.effectiveAppearance.name.rawValue
+        let key = icon + text + color.description + appearance
         if key == cachedMenuBarKey { return cachedMenuBarImage }
         cachedMenuBarKey = key
-        cachedMenuBarImage = buildMenuBarImage(iconName: icon, text: text)
+        cachedMenuBarImage = buildMenuBarImage(iconName: icon, text: text, color: color)
         return cachedMenuBarImage
     }
 
-    private func buildMenuBarImage(iconName: String, text: String) -> NSImage {
+    private func buildMenuBarImage(iconName: String, text: String, color: NSColor) -> NSImage {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         let symbolConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
         let symbolImage = NSImage(systemSymbolName: iconName, accessibilityDescription: nil)?
             .withSymbolConfiguration(symbolConfig) ?? NSImage()
         let symbolSize = symbolImage.size
-        let attrs: [NSAttributedString.Key: Any] = [.font: font]
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor]
         let textSize = (text as NSString).size(withAttributes: attrs)
         let spacing: CGFloat = 3
         let totalWidth = symbolSize.width + spacing + textSize.width
@@ -358,7 +378,6 @@ final class UsageViewModel: ObservableObject {
             (text as NSString).draw(at: NSPoint(x: symbolSize.width + spacing, y: textY), withAttributes: attrs)
             return true
         }
-        composed.isTemplate = true
         return composed
     }
 
