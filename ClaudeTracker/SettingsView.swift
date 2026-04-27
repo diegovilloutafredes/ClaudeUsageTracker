@@ -83,6 +83,23 @@ struct SettingsView: View {
             }
 
             Toggle("Show pace indicator", isOn: $viewModel.showPace)
+
+            if viewModel.showPace {
+                HStack(spacing: 10) {
+                    Text("Rate window")
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                    Picker("", selection: $viewModel.paceHistoryMinutes) {
+                        Text("5m").tag(5.0)
+                        Text("10m").tag(10.0)
+                        Text("15m").tag(15.0)
+                        Text("30m").tag(30.0)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+                .padding(.leading, 20)
+            }
         }
     }
 

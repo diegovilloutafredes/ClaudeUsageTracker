@@ -54,6 +54,8 @@ final class UsageViewModel: ObservableObject {
     @Published var paceToastDuration: Double = 5.0
     /// When `true`, pace alert toasts stay on screen until dismissed by the user.
     @Published var paceToastPermanent: Bool = false
+    /// Rolling history window in minutes; older samples are discarded.
+    @Published var paceHistoryMinutes: Double = 15
 
     let apiService = ClaudeAPIService()
     private var timer: AnyCancellable?
@@ -108,6 +110,8 @@ final class UsageViewModel: ObservableObject {
         let savedPaceDuration = UserDefaults.standard.double(forKey: "paceToastDuration")
         paceToastDuration  = savedPaceDuration > 0 ? savedPaceDuration : 5.0
         paceToastPermanent = UserDefaults.standard.object(forKey: "paceToastPermanent") as? Bool ?? false
+        let savedHistory = UserDefaults.standard.double(forKey: "paceHistoryMinutes")
+        paceHistoryMinutes = savedHistory > 0 ? savedHistory : 15
 
         $menuBarWindow
             .dropFirst().removeDuplicates()
@@ -167,6 +171,10 @@ final class UsageViewModel: ObservableObject {
 
         $paceToastPermanent.dropFirst().removeDuplicates()
             .sink { UserDefaults.standard.set($0, forKey: "paceToastPermanent") }
+            .store(in: &cancellables)
+
+        $paceHistoryMinutes.dropFirst().removeDuplicates()
+            .sink { UserDefaults.standard.set($0, forKey: "paceHistoryMinutes") }
             .store(in: &cancellables)
 
         UNUserNotificationCenter.current().delegate = notificationDelegate
@@ -450,7 +458,7 @@ final class UsageViewModel: ObservableObject {
     /// cleared first — this handles window resets, which drop utilization back to near zero.
     private func recordHistory(_ response: UsageResponse) {
         let now = Date()
-        let cutoff = now.addingTimeInterval(-15 * 60)
+        let cutoff = now.addingTimeInterval(-paceHistoryMinutes * 60)
 
         func append(key: String, utilization: Double?) {
             guard let utilization else { return }
@@ -512,7 +520,7 @@ final class UsageViewModel: ObservableObject {
         let oldest = history.first!
         let newest = history.last!
         let elapsed = newest.0.timeIntervalSince(oldest.0) / 3600.0
-        guard elapsed >= (2.0 / 60.0) else { return nil }
+        guard elapsed >= (30.0 / 3600.0) else { return nil }
         let rate = (newest.1 - oldest.1) / elapsed
         guard rate > 0.1 else { return nil }
         let remaining = 100.0 - newest.1
