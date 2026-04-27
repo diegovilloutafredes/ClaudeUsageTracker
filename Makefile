@@ -28,13 +28,15 @@ build:
 	@echo "==> Building..."
 	@pkill -9 -f "$(APP)" 2>/dev/null || true
 	@rm -rf ~/Library/Developer/Xcode/DerivedData/ClaudeUsageTracker-*
-	@mkdir -p $(BUILD_DIR)
+	@rm -rf $(BUILD_DIR) && mkdir -p $(BUILD_DIR)
+	@xattr -w com.apple.xcode.CreatedByBuildSystem true "$(CURDIR)/$(BUILD_DIR)"
 	xcodebuild -project $(PROJECT) \
 	           -scheme $(SCHEME) \
 	           -configuration Release \
 	           -quiet \
 	           clean build \
 	           CONFIGURATION_BUILD_DIR="$(CURDIR)/$(BUILD_DIR)" \
+	           SWIFT_STRICT_CONCURRENCY=minimal \
 	           $(SIGNING_FLAGS)
 
 tag:
