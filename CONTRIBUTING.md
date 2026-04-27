@@ -5,9 +5,9 @@ Contributions are welcome — bug fixes, improvements, and new features.
 ## Getting started
 
 ```bash
-git clone https://github.com/diegovilloutafredes/ClaudeUsageTracker.git
-cd ClaudeUsageTracker
-open ClaudeUsageTracker.xcodeproj
+git clone https://github.com/diegovilloutafredes/ClaudeTracker.git
+cd ClaudeTracker
+open ClaudeTracker.xcodeproj
 ```
 
 No external dependencies. Requires macOS 14+ and Xcode 15+.
@@ -17,11 +17,11 @@ No external dependencies. Requires macOS 14+ and Xcode 15+.
 macOS caches app binaries aggressively. After any code change, run a full clean cycle:
 
 ```bash
-pkill -9 -f ClaudeUsageTracker 2>/dev/null; sleep 1
-rm -rf /Applications/ClaudeUsageTracker.app
-rm -rf ~/Library/Developer/Xcode/DerivedData/ClaudeUsageTracker-*
-xcodebuild -project ClaudeUsageTracker.xcodeproj \
-           -scheme ClaudeUsageTracker \
+pkill -9 -f ClaudeTracker 2>/dev/null; sleep 1
+rm -rf /Applications/ClaudeTracker.app
+rm -rf ~/Library/Developer/Xcode/DerivedData/ClaudeTracker-*
+xcodebuild -project ClaudeTracker.xcodeproj \
+           -scheme ClaudeTracker \
            -configuration Debug \
            clean build
 ```
@@ -29,9 +29,9 @@ xcodebuild -project ClaudeUsageTracker.xcodeproj \
 Then copy and launch:
 
 ```bash
-APP=$(find ~/Library/Developer/Xcode/DerivedData -name "ClaudeUsageTracker.app" -not -path "*/Index.noindex/*" | head -1)
+APP=$(find ~/Library/Developer/Xcode/DerivedData -name "ClaudeTracker.app" -not -path "*/Index.noindex/*" | head -1)
 cp -R "$APP" /Applications/
-open /Applications/ClaudeUsageTracker.app
+open /Applications/ClaudeTracker.app
 ```
 
 The `make release` command (see below) does the full build + package cycle. To install the resulting binary:
@@ -60,7 +60,7 @@ The current release process (manual `make tag`) is intentionally simple. If the 
 
 ## Bundle ID note
 
-The app's bundle identifier is `com.claudeusagetracker.app`. UserDefaults keys and the Notification Center identifier are derived from this. If you fork the project and change the bundle ID, update the `UNUserNotificationCenter` category identifier in `UsageViewModel.swift` accordingly.
+The app's bundle identifier is `com.claudetracker.app`. UserDefaults keys and the Notification Center identifier are derived from this. If you fork the project and change the bundle ID, update the `UNUserNotificationCenter` category identifier in `UsageViewModel.swift` accordingly.
 
 ## Pull requests
 
@@ -75,4 +75,4 @@ Use the GitHub issue templates. Include:
 - macOS version
 - Whether you're on a Pro, Max, or Team plan
 - Steps to reproduce
-- Any relevant console output (run `Console.app`, filter by `ClaudeUsageTracker`)
+- Any relevant console output (run `Console.app`, filter by `ClaudeTracker`)

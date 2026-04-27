@@ -1,13 +1,13 @@
 #!/bin/bash
-# Double-click this file in Finder to install ClaudeUsageTracker.
+# Double-click this file in Finder to install ClaudeTracker.
 
-APP_NAME="ClaudeUsageTracker.app"
+APP_NAME="ClaudeTracker.app"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_SRC="$SCRIPT_DIR/$APP_NAME"
 APP_DEST="/Applications/$APP_NAME"
 
 if [ ! -d "$APP_SRC" ]; then
-    osascript -e 'display alert "Installation failed" message "ClaudeUsageTracker.app must be in the same folder as this installer." as critical'
+    osascript -e 'display alert "Installation failed" message "ClaudeTracker.app must be in the same folder as this installer." as critical'
     exit 1
 fi
 
@@ -21,6 +21,6 @@ cp -R "$APP_SRC" "$APP_DEST"
 # Strip the quarantine flag Gatekeeper sets on downloaded files
 xattr -dr com.apple.quarantine "$APP_DEST"
 
-osascript -e 'display notification "ClaudeUsageTracker installed successfully." with title "Installation complete"'
+osascript -e 'display notification "ClaudeTracker installed successfully." with title "Installation complete"'
 
 open "$APP_DEST"

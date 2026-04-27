@@ -1,4 +1,4 @@
-# ClaudeUsageTracker
+# ClaudeTracker
 
 A macOS menu bar app that shows your [Claude AI](https://claude.ai) usage limits in real time — utilization percentages, progress bars, and countdown timers until each window resets.
 
@@ -27,7 +27,7 @@ A macOS menu bar app that shows your [Claude AI](https://claude.ai) usage limits
 
 ### Download a release
 
-1. Go to [Releases](https://github.com/diegovilloutafredes/ClaudeUsageTracker/releases) and download the latest `ClaudeUsageTracker.zip`
+1. Go to [Releases](https://github.com/diegovilloutafredes/ClaudeTracker/releases) and download the latest `ClaudeTracker.zip`
 2. Unzip it
 3. Double-click `install.command` — it copies the app to `/Applications`, strips the Gatekeeper quarantine flag, and launches it
 
@@ -38,12 +38,12 @@ The quarantine flag is removed automatically by the installer. No manual `xattr`
 ### Build from source
 
 ```bash
-git clone https://github.com/diegovilloutafredes/ClaudeUsageTracker.git
-cd ClaudeUsageTracker
+git clone https://github.com/diegovilloutafredes/ClaudeTracker.git
+cd ClaudeTracker
 make release
 ```
 
-The build output lands at `release/ClaudeUsageTracker.zip`. To install immediately:
+The build output lands at `release/ClaudeTracker.zip`. To install immediately:
 
 ```bash
 cd release/dist
@@ -67,7 +67,7 @@ Authentication is handled by the shared WKWebView cookie store. Signing in once 
 
 | File | Responsibility |
 |---|---|
-| `ClaudeUsageTrackerApp.swift` | App entry point, `MenuBarExtra` scene, composed menu bar image |
+| `ClaudeTrackerApp.swift` | App entry point, `MenuBarExtra` scene, composed menu bar image |
 | `ClaudeAPIService.swift` | Hidden `WKWebView` for API calls; login page loading and cookie polling |
 | `UsageViewModel.swift` | Published state, polling timer, UserDefaults persistence, notification dispatch |
 | `Models.swift` | Codable structs for API responses; `MenuBarWindow` display enum |

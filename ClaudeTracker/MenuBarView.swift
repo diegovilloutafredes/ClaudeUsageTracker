@@ -20,7 +20,7 @@ struct MenuBarView: View {
     @ViewBuilder
     private var header: some View {
         HStack {
-            Text("Claude Usage")
+            Text("Claude Tracker")
                 .font(.headline)
             Spacer()
             if let sub = viewModel.accountInfo?.subscriptionLabel {

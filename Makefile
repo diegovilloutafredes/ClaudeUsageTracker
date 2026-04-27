@@ -1,7 +1,7 @@
-PROJECT  = ClaudeUsageTracker.xcodeproj
-SCHEME   = ClaudeUsageTracker
-APP      = ClaudeUsageTracker.app
-ZIP      = release/ClaudeUsageTracker.zip
+PROJECT  = ClaudeTracker.xcodeproj
+SCHEME   = ClaudeTracker
+APP      = ClaudeTracker.app
+ZIP      = release/ClaudeTracker.zip
 
 BUILD_DIR = release/build
 DIST_DIR  = release/dist
@@ -27,7 +27,7 @@ release: build
 build:
 	@echo "==> Building..."
 	@pkill -9 -f "$(APP)" 2>/dev/null || true
-	@rm -rf ~/Library/Developer/Xcode/DerivedData/ClaudeUsageTracker-*
+	@rm -rf ~/Library/Developer/Xcode/DerivedData/ClaudeTracker-*
 	@rm -rf $(BUILD_DIR) && mkdir -p $(BUILD_DIR)
 	@xattr -w com.apple.xcode.CreatedByBuildSystem true "$(CURDIR)/$(BUILD_DIR)"
 	xcodebuild -project $(PROJECT) \
@@ -53,4 +53,4 @@ clean:
 	@echo "==> Cleaning..."
 	@pkill -9 -f "$(APP)" 2>/dev/null || true
 	@rm -rf release
-	@rm -rf ~/Library/Developer/Xcode/DerivedData/ClaudeUsageTracker-*
+	@rm -rf ~/Library/Developer/Xcode/DerivedData/ClaudeTracker-*

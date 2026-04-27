@@ -19,8 +19,8 @@ jobs:
       - name: Build
         run: |
           xcodebuild \
-            -project ClaudeUsageTracker.xcodeproj \
-            -scheme ClaudeUsageTracker \
+            -project ClaudeTracker.xcodeproj \
+            -scheme ClaudeTracker \
             -configuration Debug \
             -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO \

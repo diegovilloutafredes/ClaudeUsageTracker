@@ -6,7 +6,7 @@ import SwiftUI
 /// `MenuBarExtra` uses `.window` style so the popover is a proper borderless window
 /// rather than a native menu — required for SwiftUI interactive controls to work correctly inside it.
 @main
-struct ClaudeUsageTrackerApp: App {
+struct ClaudeTrackerApp: App {
     @StateObject private var viewModel = UsageViewModel()
 
     var body: some Scene {

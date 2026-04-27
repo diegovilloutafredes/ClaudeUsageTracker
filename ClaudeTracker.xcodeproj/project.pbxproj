@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		AA0000000000000000000001 /* ClaudeUsageTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000001 /* ClaudeUsageTrackerApp.swift */; };
+		AA0000000000000000000001 /* ClaudeTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000001 /* ClaudeTrackerApp.swift */; };
 		AA0000000000000000000002 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000002 /* Models.swift */; };
 		AA0000000000000000000003 /* ClaudeAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000003 /* ClaudeAPIService.swift */; };
 		AA0000000000000000000004 /* UsageViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000004 /* UsageViewModel.swift */; };
@@ -18,15 +18,15 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		BB0000000000000000000001 /* ClaudeUsageTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageTrackerApp.swift; sourceTree = "<group>"; };
+		BB0000000000000000000001 /* ClaudeTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeTrackerApp.swift; sourceTree = "<group>"; };
 		BB0000000000000000000002 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		BB0000000000000000000003 /* ClaudeAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAPIService.swift; sourceTree = "<group>"; };
 		BB0000000000000000000004 /* UsageViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageViewModel.swift; sourceTree = "<group>"; };
 		BB0000000000000000000005 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		BB0000000000000000000006 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		BB0000000000000000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		BB0000000000000000000008 /* ClaudeUsageTracker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClaudeUsageTracker.entitlements; sourceTree = "<group>"; };
-		BB0000000000000000000009 /* ClaudeUsageTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClaudeUsageTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB0000000000000000000008 /* ClaudeTracker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClaudeTracker.entitlements; sourceTree = "<group>"; };
+		BB0000000000000000000009 /* ClaudeTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClaudeTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB0000000000000000000010 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		BB0000000000000000000011 /* ToastWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastWindowController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -45,15 +45,15 @@
 		DD0000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
-				DD0000000000000000000002 /* ClaudeUsageTracker */,
+				DD0000000000000000000002 /* ClaudeTracker */,
 				DD0000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		DD0000000000000000000002 /* ClaudeUsageTracker */ = {
+		DD0000000000000000000002 /* ClaudeTracker */ = {
 			isa = PBXGroup;
 			children = (
-				BB0000000000000000000001 /* ClaudeUsageTrackerApp.swift */,
+				BB0000000000000000000001 /* ClaudeTrackerApp.swift */,
 				BB0000000000000000000002 /* Models.swift */,
 				BB0000000000000000000003 /* ClaudeAPIService.swift */,
 				BB0000000000000000000004 /* UsageViewModel.swift */,
@@ -62,15 +62,15 @@
 				BB0000000000000000000010 /* LoginView.swift */,
 				BB0000000000000000000011 /* ToastWindowController.swift */,
 				BB0000000000000000000007 /* Info.plist */,
-				BB0000000000000000000008 /* ClaudeUsageTracker.entitlements */,
+				BB0000000000000000000008 /* ClaudeTracker.entitlements */,
 			);
-			path = ClaudeUsageTracker;
+			path = ClaudeTracker;
 			sourceTree = "<group>";
 		};
 		DD0000000000000000000003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				BB0000000000000000000009 /* ClaudeUsageTracker.app */,
+				BB0000000000000000000009 /* ClaudeTracker.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -78,9 +78,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		EE0000000000000000000001 /* ClaudeUsageTracker */ = {
+		EE0000000000000000000001 /* ClaudeTracker */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = FF0000000000000000000002 /* Build configuration list for PBXNativeTarget "ClaudeUsageTracker" */;
+			buildConfigurationList = FF0000000000000000000002 /* Build configuration list for PBXNativeTarget "ClaudeTracker" */;
 			buildPhases = (
 				GG0000000000000000000001 /* Sources */,
 				CC0000000000000000000001 /* Frameworks */,
@@ -89,9 +89,9 @@
 			);
 			dependencies = (
 			);
-			name = ClaudeUsageTracker;
-			productName = ClaudeUsageTracker;
-			productReference = BB0000000000000000000009 /* ClaudeUsageTracker.app */;
+			name = ClaudeTracker;
+			productName = ClaudeTracker;
+			productReference = BB0000000000000000000009 /* ClaudeTracker.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -104,7 +104,7 @@
 				LastSwiftUpdateCheck = 1540;
 				LastUpgradeCheck = 1540;
 			};
-			buildConfigurationList = FF0000000000000000000001 /* Build configuration list for PBXProject "ClaudeUsageTracker" */;
+			buildConfigurationList = FF0000000000000000000001 /* Build configuration list for PBXProject "ClaudeTracker" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -117,7 +117,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				EE0000000000000000000001 /* ClaudeUsageTracker */,
+				EE0000000000000000000001 /* ClaudeTracker */,
 			);
 		};
 /* End PBXProject section */
@@ -127,7 +127,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA0000000000000000000001 /* ClaudeUsageTrackerApp.swift in Sources */,
+				AA0000000000000000000001 /* ClaudeTrackerApp.swift in Sources */,
 				AA0000000000000000000002 /* Models.swift in Sources */,
 				AA0000000000000000000003 /* ClaudeAPIService.swift in Sources */,
 				AA0000000000000000000004 /* UsageViewModel.swift in Sources */,
@@ -195,19 +195,19 @@
 		II0000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = ClaudeUsageTracker/ClaudeUsageTracker.entitlements;
+				CODE_SIGN_ENTITLEMENTS = ClaudeTracker/ClaudeTracker.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = ClaudeUsageTracker/Info.plist;
+				INFOPLIST_FILE = ClaudeTracker/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.claudeusagetracker.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.claudetracker.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
@@ -216,19 +216,19 @@
 		II0000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = ClaudeUsageTracker/ClaudeUsageTracker.entitlements;
+				CODE_SIGN_ENTITLEMENTS = ClaudeTracker/ClaudeTracker.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = ClaudeUsageTracker/Info.plist;
+				INFOPLIST_FILE = ClaudeTracker/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.claudeusagetracker.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.claudetracker.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
@@ -237,7 +237,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		FF0000000000000000000001 /* Build configuration list for PBXProject "ClaudeUsageTracker" */ = {
+		FF0000000000000000000001 /* Build configuration list for PBXProject "ClaudeTracker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				II0000000000000000000001 /* Debug */,
@@ -246,7 +246,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		FF0000000000000000000002 /* Build configuration list for PBXNativeTarget "ClaudeUsageTracker" */ = {
+		FF0000000000000000000002 /* Build configuration list for PBXNativeTarget "ClaudeTracker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				II0000000000000000000003 /* Debug */,

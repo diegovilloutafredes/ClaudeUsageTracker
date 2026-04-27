@@ -13,7 +13,7 @@ struct SettingsView: View {
             refreshSection
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 660)
+        .frame(width: 460, height: 700)
     }
 
     // MARK: - Account
@@ -102,6 +102,25 @@ struct SettingsView: View {
                         .font(.callout.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .frame(width: 32, alignment: .trailing)
+                }
+
+                if viewModel.notifyToast {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text("Toast duration")
+                                .font(.callout)
+                                .foregroundStyle(viewModel.paceToastPermanent ? .tertiary : .secondary)
+                            Slider(value: $viewModel.paceToastDuration, in: 1...30, step: 1)
+                                .disabled(viewModel.paceToastPermanent)
+                            Text(viewModel.paceToastPermanent ? "∞" : "\(Int(viewModel.paceToastDuration))s")
+                                .font(.callout.monospacedDigit())
+                                .foregroundStyle(viewModel.paceToastPermanent ? .tertiary : .secondary)
+                                .frame(width: 28, alignment: .trailing)
+                        }
+                        Toggle("Stay until dismissed", isOn: $viewModel.paceToastPermanent)
+                            .font(.callout)
+                    }
+                    .padding(.leading, 20)
                 }
             }
         } header: {

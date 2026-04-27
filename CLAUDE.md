@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-ClaudeUsageTracker — a macOS menu bar app that monitors Claude AI usage limits in real time. It polls the unofficial claude.ai web API and displays utilization percentages and reset countdowns. Open source, MIT licensed.
+ClaudeTracker — a macOS menu bar app that monitors Claude AI usage limits in real time. It polls the unofficial claude.ai web API and displays utilization percentages and reset countdowns. Open source, MIT licensed.
 
 ## Build & Deploy
 
@@ -19,18 +19,18 @@ Then install:
 ```bash
 cd release/dist && bash install.command
 # or manually:
-cp -R release/build/ClaudeUsageTracker.app /Applications/
-open /Applications/ClaudeUsageTracker.app
+cp -R release/build/ClaudeTracker.app /Applications/
+open /Applications/ClaudeTracker.app
 ```
 
-Never `cp -R` over an existing `/Applications/ClaudeUsageTracker.app` — Launch Services caches the old binary. Always delete first, then copy. `install.command` does this automatically.
+Never `cp -R` over an existing `/Applications/ClaudeTracker.app` — Launch Services caches the old binary. Always delete first, then copy. `install.command` does this automatically.
 
 Other Makefile targets:
 
 | Target | Purpose |
 |---|---|
 | `make build` | Clean + build Release into `release/build/` |
-| `make release` | `make build` + zip into `release/ClaudeUsageTracker.zip` |
+| `make release` | `make build` + zip into `release/ClaudeTracker.zip` |
 | `make tag VERSION=x.y.z` | Bump `MARKETING_VERSION`, commit, tag, push — triggers CI release |
 | `make clean` | Remove all build artifacts |
 
@@ -44,13 +44,13 @@ Cutting a release:
 make tag VERSION=1.1.0
 ```
 
-This requires a clean working directory. It bumps `MARKETING_VERSION` in `ClaudeUsageTracker.xcodeproj/project.pbxproj`, commits the bump, creates an annotated git tag, and pushes both the commit and the tag. The GitHub Actions release workflow (`.github/workflows/release.yml`) triggers on the tag and publishes a GitHub Release with the zip attached.
+This requires a clean working directory. It bumps `MARKETING_VERSION` in `ClaudeTracker.xcodeproj/project.pbxproj`, commits the bump, creates an annotated git tag, and pushes both the commit and the tag. The GitHub Actions release workflow (`.github/workflows/release.yml`) triggers on the tag and publishes a GitHub Release with the zip attached.
 
 The build uses `SIGNING_FLAGS="CODE_SIGNING_ALLOWED=NO"` and `SWIFT_STRICT_CONCURRENCY=minimal` on CI (both set in the Makefile). Do not remove `SWIFT_STRICT_CONCURRENCY=minimal` — Xcode 16 on `macos-15` treats some concurrency patterns as errors without it.
 
 ## Architecture
 
-- **ClaudeUsageTrackerApp.swift** — App entry point using `MenuBarExtra` with `.window` style (no dock icon via `LSUIElement`). The label uses a single `Image(nsImage:)` with a composed NSImage.
+- **ClaudeTrackerApp.swift** — App entry point using `MenuBarExtra` with `.window` style (no dock icon via `LSUIElement`). The label uses a single `Image(nsImage:)` with a composed NSImage.
 - **ClaudeAPIService.swift** — Networking via a hidden `WKWebView` that calls `fetch()` through `callAsyncJavaScript`. This bypasses Cloudflare bot protection which blocks plain `URLSession` requests. Also handles login flow (loads claude.ai login page, polls cookies for `sessionKey`). Uses `.defaultClient` content world.
 - **UsageViewModel.swift** — Central state. Manages polling (Combine `Timer.publish`), persistence (`UserDefaults`), rate-limit backoff, session state, and notification dispatch. Generates the composed `menuBarImage` (SF Symbol + text baked into one `NSImage` with `isTemplate = true`). Notification preferences are persisted per-key; `notifyBanner` is stored under `"notifyOnReset"` for backwards compatibility.
 - **Models.swift** — Codable structs matching the API response: `UsageResponse` with `five_hour`, `seven_day`, `seven_day_opus`, `seven_day_sonnet` windows, each containing `utilization` (0–100%) and `resets_at` (ISO 8601). `AccountInfo` derives the subscription label from `memberships[0].organization.capabilities` (e.g. `"claude_max"`) and `rate_limit_tier` (e.g. `"default_claude_max_5x"`). Also `MenuBarWindow` enum for the display picker.
@@ -71,7 +71,7 @@ Do NOT attempt `HStack { Image; Text }`, `Label(text, systemImage:)`, `Text("\(I
 
 **UserDefaults migration:** `notificationDefaultsVersion` tracks applied migrations. Version 2 reset defaults to toast-only. Increment this key and add a migration block in `UsageViewModel.init()` whenever defaults need to change for existing installs.
 
-**Sandboxing:** The app is sandboxed with only `com.apple.security.network.client`. It cannot write to the Desktop or other user directories — use `NSTemporaryDirectory()` for any debug output (maps to `~/Library/Containers/com.claudeusagetracker.app/Data/tmp/`).
+**Sandboxing:** The app is sandboxed with only `com.apple.security.network.client`. It cannot write to the Desktop or other user directories — use `NSTemporaryDirectory()` for any debug output (maps to `~/Library/Containers/com.claudetracker.app/Data/tmp/`).
 
 **SourceKit false positives:** Persistent "Cannot find type X in scope" errors appear in SourceKit for all cross-file references. These are IDE-level issues and do not reflect real build errors. All builds succeed normally.
 

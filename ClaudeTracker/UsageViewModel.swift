@@ -50,6 +50,10 @@ final class UsageViewModel: ObservableObject {
     @Published var notifyPace: Bool = false
     /// Threshold in minutes: fire the pace alert when projected full time drops below this value.
     @Published var paceWarningMinutes: Double = 30
+    /// Toast duration for pace alerts, independent of the reset-notification toast duration.
+    @Published var paceToastDuration: Double = 5.0
+    /// When `true`, pace alert toasts stay on screen until dismissed by the user.
+    @Published var paceToastPermanent: Bool = false
 
     let apiService = ClaudeAPIService()
     private var timer: AnyCancellable?
@@ -101,6 +105,9 @@ final class UsageViewModel: ObservableObject {
         notifyPace     = UserDefaults.standard.object(forKey: "notifyPace")     as? Bool   ?? false
         let savedWarning = UserDefaults.standard.double(forKey: "paceWarningMinutes")
         paceWarningMinutes = savedWarning > 0 ? savedWarning : 30
+        let savedPaceDuration = UserDefaults.standard.double(forKey: "paceToastDuration")
+        paceToastDuration  = savedPaceDuration > 0 ? savedPaceDuration : 5.0
+        paceToastPermanent = UserDefaults.standard.object(forKey: "paceToastPermanent") as? Bool ?? false
 
         $menuBarWindow
             .dropFirst().removeDuplicates()
@@ -152,6 +159,14 @@ final class UsageViewModel: ObservableObject {
 
         $paceWarningMinutes.dropFirst().removeDuplicates()
             .sink { UserDefaults.standard.set($0, forKey: "paceWarningMinutes") }
+            .store(in: &cancellables)
+
+        $paceToastDuration.dropFirst().removeDuplicates()
+            .sink { UserDefaults.standard.set($0, forKey: "paceToastDuration") }
+            .store(in: &cancellables)
+
+        $paceToastPermanent.dropFirst().removeDuplicates()
+            .sink { UserDefaults.standard.set($0, forKey: "paceToastPermanent") }
             .store(in: &cancellables)
 
         UNUserNotificationCenter.current().delegate = notificationDelegate
@@ -477,7 +492,7 @@ final class UsageViewModel: ObservableObject {
                 let minsLeft = max(1, Int(projHours * 60))
                 let title = "Approaching usage limit"
                 let body  = "\(name) fills in \(minsLeft) min at \(String(format: "%.1f", pd.rate))%/hr"
-                if notifyToast  { ToastWindowController.shared.show(title: title, message: body, duration: toastDuration, permanent: toastPermanent) }
+                if notifyToast  { ToastWindowController.shared.show(title: title, message: body, duration: paceToastDuration, permanent: paceToastPermanent) }
                 if notifySound  { NSSound(named: NSSound.Name("Glass"))?.play() }
                 if notifyBanner { sendBannerNotification(title: title, body: body) }
             } else if paceData == nil {
