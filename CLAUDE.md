@@ -11,28 +11,20 @@ ClaudeTracker — a macOS menu bar app that monitors Claude AI usage limits in r
 Use the Makefile. Full clean cycle is required for every change (macOS caches stale binaries otherwise):
 
 ```bash
-make build   # clean + build Release into release/build/
+make run   # clean + build + install into /Applications/ + launch
 ```
-
-Then install:
-
-```bash
-cd release/dist && bash install.command
-# or manually:
-cp -R release/build/ClaudeTracker.app /Applications/
-open /Applications/ClaudeTracker.app
-```
-
-Never `cp -R` over an existing `/Applications/ClaudeTracker.app` — Launch Services caches the old binary. Always delete first, then copy. `install.command` does this automatically.
 
 Other Makefile targets:
 
 | Target | Purpose |
 |---|---|
+| `make run` | Clean + build + install into `/Applications/` + launch |
 | `make build` | Clean + build Release into `release/build/` |
 | `make release` | `make build` + zip into `release/ClaudeTracker.zip` |
 | `make tag VERSION=x.y.z` | Bump `MARKETING_VERSION`, commit, tag, push — triggers CI release |
 | `make clean` | Remove all build artifacts |
+
+Never `cp -R` over an existing `/Applications/ClaudeTracker.app` — Launch Services caches the old binary. Always delete first, then copy. `make run` and `install.command` both do this automatically.
 
 Requires macOS 14+ (Sonoma) and Xcode 15+. No external dependencies.
 

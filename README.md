@@ -42,12 +42,15 @@ The quarantine flag is removed automatically by the installer. No manual `xattr`
 ```bash
 git clone https://github.com/diegovilloutafredes/ClaudeTracker.git
 cd ClaudeTracker
-make release
+make run
 ```
 
-The build output lands at `release/ClaudeTracker.zip`. To install immediately:
+This builds, installs to `/Applications/`, and launches the app in one step.
+
+To package a distributable zip instead:
 
 ```bash
+make release
 cd release/dist
 bash install.command
 ```

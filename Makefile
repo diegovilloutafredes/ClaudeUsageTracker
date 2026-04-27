@@ -9,7 +9,7 @@ DIST_DIR  = release/dist
 # Override on CI: make build SIGNING_FLAGS="CODE_SIGNING_ALLOWED=NO"
 SIGNING_FLAGS ?= CODE_SIGN_IDENTITY="-"
 
-.PHONY: release build clean tag
+.PHONY: release build run clean tag
 
 release: build
 	@echo "==> Packaging..."
@@ -38,6 +38,12 @@ build:
 	           CONFIGURATION_BUILD_DIR="$(CURDIR)/$(BUILD_DIR)" \
 	           SWIFT_STRICT_CONCURRENCY=minimal \
 	           $(SIGNING_FLAGS)
+
+run: build
+	@echo "==> Installing and launching..."
+	@rm -rf /Applications/$(APP)
+	@cp -R $(BUILD_DIR)/$(APP) /Applications/$(APP)
+	@open /Applications/$(APP)
 
 tag:
 	@if [ -z "$(VERSION)" ]; then echo "Usage: make tag VERSION=1.0.0"; exit 1; fi
