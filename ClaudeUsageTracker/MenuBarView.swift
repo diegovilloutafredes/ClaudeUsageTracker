@@ -131,7 +131,7 @@ struct MenuBarView: View {
 
     private func windowRow(title: String, window: UsageWindow) -> some View {
         let key = title == "5-Hour Window" ? "five_hour" : "seven_day"
-        let pace = viewModel.pace(for: key)
+        let pace = viewModel.showPace ? viewModel.pace(for: key) : nil
         return UsageWindowView(
             title: title,
             window: window,

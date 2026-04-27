@@ -7,158 +7,173 @@ struct SettingsView: View {
     var body: some View {
         Form {
             accountSection
-            menuBarSection
+            displaySection
+            paceSection
             notificationsSection
             refreshSection
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 580)
+        .frame(width: 460, height: 660)
     }
 
-    // MARK: - Sections
+    // MARK: - Account
 
     private var accountSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Account").font(.headline)
+        Section("Account") {
+            HStack(alignment: .center, spacing: 10) {
+                Circle()
+                    .fill(viewModel.isAuthenticated ? Color.green : Color.red)
+                    .frame(width: 8, height: 8)
+                    .accessibilityHidden(true)
 
-                HStack(alignment: .top, spacing: 8) {
-                    Circle()
-                        .fill(viewModel.isAuthenticated ? Color.green : Color.red)
-                        .frame(width: 8, height: 8)
-                        .padding(.top, 4)
-                        .accessibilityHidden(true)
-
-                    if let info = viewModel.accountInfo {
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 6) {
-                                Text(info.displayName).font(.subheadline)
-                                if let sub = info.subscriptionLabel {
-                                    Text(sub)
-                                        .font(.caption2.weight(.semibold))
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.purple.opacity(0.15), in: Capsule())
-                                        .foregroundStyle(Color.purple)
-                                }
+                if let info = viewModel.accountInfo {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(info.displayName)
+                                .font(.subheadline)
+                            if let sub = info.subscriptionLabel {
+                                Text(sub)
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.purple.opacity(0.15), in: Capsule())
+                                    .foregroundStyle(Color.purple)
                             }
-                            Text(info.emailAddress).font(.caption).foregroundStyle(.secondary)
                         }
-                    } else {
-                        Text(viewModel.isAuthenticated ? "Signed in" : "Not signed in")
-                            .font(.subheadline)
+                        Text(info.emailAddress)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-
-                    Spacer()
-
-                    if viewModel.isAuthenticated {
-                        Button("Sign out") { viewModel.signOut() }
-                    } else {
-                        Button("Sign in") {
-                            LoginWindowController.shared.open(
-                                apiService: viewModel.apiService,
-                                onSessionFound: viewModel.handleSessionFound
-                            )
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
+                } else {
+                    Text(viewModel.isAuthenticated ? "Signed in" : "Not signed in")
+                        .font(.subheadline)
                 }
 
-                if let error = viewModel.error {
-                    Text(error).font(.caption).foregroundStyle(.orange)
+                Spacer()
+
+                if viewModel.isAuthenticated {
+                    Button("Sign out") { viewModel.signOut() }
+                } else {
+                    Button("Sign in") {
+                        LoginWindowController.shared.open(
+                            apiService: viewModel.apiService,
+                            onSessionFound: viewModel.handleSessionFound
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
+            }
+
+            if let error = viewModel.error {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
         }
     }
 
-    private var menuBarSection: some View {
+    // MARK: - Display
+
+    private var displaySection: some View {
+        Section("Display") {
+            Picker("Menu bar window", selection: $viewModel.menuBarWindow) {
+                ForEach(MenuBarWindow.allCases) { window in
+                    Text(window.label).tag(window)
+                }
+            }
+
+            Toggle("Show pace indicator", isOn: $viewModel.showPace)
+        }
+    }
+
+    // MARK: - Pace Alerts
+
+    private var paceSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Menu Bar Display").font(.headline)
+            Toggle("Notify when approaching limit", isOn: $viewModel.notifyPace)
 
-                Picker("Show in menu bar:", selection: $viewModel.menuBarWindow) {
-                    ForEach(MenuBarWindow.allCases) { window in
-                        Text(window.label).tag(window)
-                    }
+            if viewModel.notifyPace {
+                HStack(spacing: 10) {
+                    Text("Warn with less than")
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                    Slider(value: $viewModel.paceWarningMinutes, in: 5...60, step: 5)
+                    Text("\(Int(viewModel.paceWarningMinutes))m")
+                        .font(.callout.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, alignment: .trailing)
                 }
-                .pickerStyle(.menu)
-
-                Text("Which usage window to display in the menu bar")
-                    .font(.caption).foregroundStyle(.secondary)
             }
+        } header: {
+            Text("Pace Alerts")
+        } footer: {
+            Text("Alert when a watched window is projected to fill before it resets, based on your current consumption rate.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
+
+    // MARK: - Notifications
 
     private var notificationsSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Notifications").font(.headline)
+        Section("Window Reset Notifications") {
+            Group {
+                Toggle("5-Hour window resets", isOn: $viewModel.notify5Hour)
+                Toggle("7-Day window resets",  isOn: $viewModel.notify7Day)
+            }
 
-                Group {
-                    Text("Windows to watch").font(.caption).foregroundStyle(.secondary)
-                    Toggle("5-Hour window resets", isOn: $viewModel.notify5Hour)
-                    Toggle("7-Day window resets",  isOn: $viewModel.notify7Day)
-                }
+            Divider()
+                .listRowInsets(EdgeInsets())
 
-                Divider()
+            Group {
+                Toggle("Toast near menu bar", isOn: $viewModel.notifyToast)
 
-                Group {
-                    Text("How to notify").font(.caption).foregroundStyle(.secondary)
-                    Toggle("Toast near menu bar", isOn: $viewModel.notifyToast)
-
-                    if viewModel.notifyToast {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 8) {
-                                Text("Duration")
-                                    .font(.caption)
-                                    .foregroundStyle(viewModel.toastPermanent ? .tertiary : .secondary)
-                                Slider(value: $viewModel.toastDuration, in: 1...30, step: 1)
-                                    .disabled(viewModel.toastPermanent)
-                                Text(viewModel.toastPermanent ? "∞" : "\(Int(viewModel.toastDuration))s")
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(viewModel.toastPermanent ? .tertiary : .secondary)
-                                    .frame(width: 28, alignment: .trailing)
-                            }
-                            Toggle("Stay until dismissed", isOn: $viewModel.toastPermanent)
+                if viewModel.notifyToast {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text("Duration")
                                 .font(.callout)
+                                .foregroundStyle(viewModel.toastPermanent ? .tertiary : .secondary)
+                            Slider(value: $viewModel.toastDuration, in: 1...30, step: 1)
+                                .disabled(viewModel.toastPermanent)
+                            Text(viewModel.toastPermanent ? "∞" : "\(Int(viewModel.toastDuration))s")
+                                .font(.callout.monospacedDigit())
+                                .foregroundStyle(viewModel.toastPermanent ? .tertiary : .secondary)
+                                .frame(width: 28, alignment: .trailing)
                         }
-                        .padding(.leading, 22)
+                        Toggle("Stay until dismissed", isOn: $viewModel.toastPermanent)
+                            .font(.callout)
                     }
-
-                    Toggle("Sound",                     isOn: $viewModel.notifySound)
-                    Toggle("System notification banner", isOn: $viewModel.notifyBanner)
+                    .padding(.leading, 20)
                 }
 
-                Divider()
+                Toggle("Sound",                      isOn: $viewModel.notifySound)
+                Toggle("System notification banner", isOn: $viewModel.notifyBanner)
+            }
 
-                HStack(spacing: 12) {
-                    Button("Test notifications") {
-                        viewModel.sendTestNotification()
-                    }
+            Divider()
+                .listRowInsets(EdgeInsets())
+
+            HStack(spacing: 10) {
+                Button("Test") { viewModel.sendTestNotification() }
                     .disabled(!viewModel.notifyToast && !viewModel.notifySound && !viewModel.notifyBanner)
-
-                    Text("Fires all enabled channels with a simulated 5-Hour reset")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text("Fires all enabled channels with a simulated reset")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
 
+    // MARK: - Refresh
+
     private var refreshSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Refresh Interval").font(.headline)
-
-                HStack {
-                    Slider(value: $viewModel.refreshInterval, in: 1...60, step: 1)
-                    Text("\(Int(viewModel.refreshInterval))s")
-                        .font(.body.monospacedDigit())
-                        .frame(width: 40, alignment: .trailing)
-                }
-
-                Text("How often to check usage (1–60 seconds)")
-                    .font(.caption).foregroundStyle(.secondary)
+        Section("Refresh Interval") {
+            HStack(spacing: 10) {
+                Slider(value: $viewModel.refreshInterval, in: 1...60, step: 1)
+                Text("\(Int(viewModel.refreshInterval))s")
+                    .font(.body.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(width: 36, alignment: .trailing)
             }
         }
     }

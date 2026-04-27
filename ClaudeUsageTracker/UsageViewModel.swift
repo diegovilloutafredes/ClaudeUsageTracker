@@ -44,6 +44,13 @@ final class UsageViewModel: ObservableObject {
     @Published var toastDuration: Double = 3.0
     @Published var toastPermanent: Bool  = false
 
+    /// Whether the pace line is shown inside each window row in the popover.
+    @Published var showPace: Bool = true
+    /// Whether a notification fires when a watched window is projected to fill before it resets.
+    @Published var notifyPace: Bool = false
+    /// Threshold in minutes: fire the pace alert when projected full time drops below this value.
+    @Published var paceWarningMinutes: Double = 30
+
     let apiService = ClaudeAPIService()
     private var timer: AnyCancellable?
     private var cancellables = Set<AnyCancellable>()
@@ -59,6 +66,8 @@ final class UsageViewModel: ObservableObject {
     private let notificationDelegate = NotificationDelegate()
     /// Rolling utilization history per window key, used to compute consumption pace.
     private var utilizationHistory: [String: [(Date, Double)]] = [:]
+    /// Window keys for which a pace alert has already fired in the current window period.
+    private var paceWarned: Set<String> = []
 
     init() {
         let saved = UserDefaults.standard.double(forKey: "refreshInterval")
@@ -88,6 +97,10 @@ final class UsageViewModel: ObservableObject {
         let savedDuration = UserDefaults.standard.double(forKey: "toastDuration")
         toastDuration = savedDuration > 0 ? savedDuration : 3.0
         toastPermanent = UserDefaults.standard.object(forKey: "toastPermanent") as? Bool ?? false
+        showPace       = UserDefaults.standard.object(forKey: "showPace")       as? Bool   ?? true
+        notifyPace     = UserDefaults.standard.object(forKey: "notifyPace")     as? Bool   ?? false
+        let savedWarning = UserDefaults.standard.double(forKey: "paceWarningMinutes")
+        paceWarningMinutes = savedWarning > 0 ? savedWarning : 30
 
         $menuBarWindow
             .dropFirst().removeDuplicates()
@@ -127,6 +140,18 @@ final class UsageViewModel: ObservableObject {
 
         $toastPermanent.dropFirst().removeDuplicates()
             .sink { UserDefaults.standard.set($0, forKey: "toastPermanent") }
+            .store(in: &cancellables)
+
+        $showPace.dropFirst().removeDuplicates()
+            .sink { UserDefaults.standard.set($0, forKey: "showPace") }
+            .store(in: &cancellables)
+
+        $notifyPace.dropFirst().removeDuplicates()
+            .sink { UserDefaults.standard.set($0, forKey: "notifyPace") }
+            .store(in: &cancellables)
+
+        $paceWarningMinutes.dropFirst().removeDuplicates()
+            .sink { UserDefaults.standard.set($0, forKey: "paceWarningMinutes") }
             .store(in: &cancellables)
 
         UNUserNotificationCenter.current().delegate = notificationDelegate
@@ -180,6 +205,7 @@ final class UsageViewModel: ObservableObject {
         isAuthenticated = false
         previousResetsAt = [:]
         utilizationHistory = [:]
+        paceWarned = []
         apiService.clearCache()
         let store = WKWebsiteDataStore.default()
         store.httpCookieStore.getAllCookies { cookies in
@@ -216,6 +242,7 @@ final class UsageViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 checkForResets(old: usage, new: response)
                 recordHistory(response)
+                checkPaceNotifications(response)
                 usage = response
                 error = nil
                 lastUpdated = Date()
@@ -415,6 +442,7 @@ final class UsageViewModel: ObservableObject {
             var history = utilizationHistory[key] ?? []
             if let last = history.last, utilization < last.1 - 20 {
                 history = []
+                paceWarned.remove(key)
             }
             history.append((now, utilization))
             utilizationHistory[key] = history.filter { $0.0 >= cutoff }
@@ -422,6 +450,40 @@ final class UsageViewModel: ObservableObject {
 
         append(key: "five_hour", utilization: response.fiveHour?.utilization)
         append(key: "seven_day", utilization: response.sevenDay?.utilization)
+    }
+
+    /// Fires a pace alert through all enabled channels when a watched window is on track to
+    /// fill before it resets. Each window can only trigger one alert per window period;
+    /// the warned flag resets automatically when utilization drops (i.e. the window resets).
+    private func checkPaceNotifications(_ response: UsageResponse) {
+        guard notifyPace else {
+            paceWarned.removeAll()
+            return
+        }
+
+        let candidates: [(key: String, name: String, watched: Bool)] = [
+            ("five_hour", "5-Hour Window", notify5Hour),
+            ("seven_day",  "7-Day Window",  notify7Day),
+        ]
+
+        for (key, name, watched) in candidates {
+            guard watched else { continue }
+            let paceData = pace(for: key)
+            if let pd = paceData,
+               let projHours = pd.projectedHours,
+               projHours * 60 < paceWarningMinutes,
+               !paceWarned.contains(key) {
+                paceWarned.insert(key)
+                let minsLeft = max(1, Int(projHours * 60))
+                let title = "Approaching usage limit"
+                let body  = "\(name) fills in \(minsLeft) min at \(String(format: "%.1f", pd.rate))%/hr"
+                if notifyToast  { ToastWindowController.shared.show(title: title, message: body, duration: toastDuration, permanent: toastPermanent) }
+                if notifySound  { NSSound(named: NSSound.Name("Glass"))?.play() }
+                if notifyBanner { sendBannerNotification(title: title, body: body) }
+            } else if paceData == nil {
+                paceWarned.remove(key)
+            }
+        }
     }
 
     /// Returns the current consumption rate and projected time to full for a window.
