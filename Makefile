@@ -6,7 +6,10 @@ ZIP      = release/ClaudeUsageTracker.zip
 BUILD_DIR = release/build
 DIST_DIR  = release/dist
 
-.PHONY: release build clean
+# Override on CI: make build SIGNING_FLAGS="CODE_SIGNING_ALLOWED=NO"
+SIGNING_FLAGS ?= CODE_SIGN_IDENTITY="-"
+
+.PHONY: release build clean tag
 
 release: build
 	@echo "==> Packaging..."
@@ -31,7 +34,13 @@ build:
 	           -configuration Release \
 	           -quiet \
 	           clean build \
-	           CONFIGURATION_BUILD_DIR="$(CURDIR)/$(BUILD_DIR)"
+	           CONFIGURATION_BUILD_DIR="$(CURDIR)/$(BUILD_DIR)" \
+	           $(SIGNING_FLAGS)
+
+tag:
+	@if [ -z "$(VERSION)" ]; then echo "Usage: make tag VERSION=1.0.0"; exit 1; fi
+	git tag -a "v$(VERSION)" -m "v$(VERSION)"
+	git push origin "v$(VERSION)"
 
 clean:
 	@echo "==> Cleaning..."

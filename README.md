@@ -26,26 +26,26 @@ A macOS menu bar app that shows your [Claude AI](https://claude.ai) usage in rea
 
 ## Installation
 
+### Download a release
+
+1. Go to [Releases](https://github.com/diegovilloutafredes/ClaudeUsageTracker/releases) and download the latest `ClaudeUsageTracker.zip`
+2. Unzip and double-click `install.command` — it copies the app to `/Applications` and launches it
+
+**Gatekeeper note:** Because the app is not signed with an Apple Developer ID, macOS will block it on first launch. To allow it, right-click `ClaudeUsageTracker.app` → Open → Open. Alternatively:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/ClaudeUsageTracker.app
+```
+
 ### Build from source
 
 ```bash
 git clone https://github.com/diegovilloutafredes/ClaudeUsageTracker.git
 cd ClaudeUsageTracker
-xcodebuild -project ClaudeUsageTracker.xcodeproj \
-           -scheme ClaudeUsageTracker \
-           -configuration Release \
-           -derivedDataPath build/DerivedData \
-           clean build
+make release
 ```
 
-Copy the built app to `/Applications`:
-
-```bash
-cp -R build/DerivedData/Build/Products/Release/ClaudeUsageTracker.app /Applications/
-open /Applications/ClaudeUsageTracker.app
-```
-
-Or use the convenience script:
+The built zip lands at `release/ClaudeUsageTracker.zip`. Or use the convenience script after building:
 
 ```bash
 bash install.command
