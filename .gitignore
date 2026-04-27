@@ -1,0 +1,38 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode
+*.xcuserstate
+xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+build/
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Release artifacts (produced by `make release`)
+release/
+
+# Debug / scratch files
+*_dump.json
+
+# Claude Code local settings (contains machine-specific paths)
+.claude/
+
+# Certificates & provisioning profiles
+*.cer
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile
