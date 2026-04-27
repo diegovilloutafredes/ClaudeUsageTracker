@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 
+/// Response payload from the `/api/organizations/{id}/usage` endpoint.
 struct UsageResponse: Codable {
     let fiveHour: UsageWindow?
     let sevenDay: UsageWindow?
@@ -16,6 +17,10 @@ struct UsageResponse: Codable {
         case extraUsage = "extra_usage"
     }
 
+    /// The windows shown in the UI, in display order.
+    ///
+    /// The Opus and Sonnet sub-windows are omitted — they are informational breakdowns
+    /// of the 7-day total and do not represent independent rate limits the user can act on.
     var allWindows: [(String, UsageWindow)] {
         var result: [(String, UsageWindow)] = []
         if let w = fiveHour { result.append(("5-Hour Window", w)) }
@@ -24,8 +29,11 @@ struct UsageResponse: Codable {
     }
 }
 
+/// A single rate-limit window returned by the usage API.
 struct UsageWindow: Codable {
+    /// Utilization as a percentage (0–100+; may slightly exceed 100 when overages are permitted).
     let utilization: Double
+    /// ISO 8601 timestamp of the next reset, as returned by the API.
     let resetsAt: String
 
     enum CodingKeys: String, CodingKey {
@@ -33,15 +41,21 @@ struct UsageWindow: Codable {
         case resetsAt = "resets_at"
     }
 
+    /// Parses `resetsAt` into a `Date`.
+    ///
+    /// The API returns timestamps both with and without fractional seconds depending on the
+    /// server — two formatters are tried in order to handle both forms.
     var resetsAtDate: Date? {
         Self.formatterWithFractional.date(from: resetsAt)
             ?? Self.formatterWithout.date(from: resetsAt)
     }
 
+    /// Utilization clamped to `[0, 1]` for use with `ProgressView`.
     var utilizationFraction: Double {
         min(utilization / 100.0, 1.0)
     }
 
+    /// Traffic-light color reflecting urgency: red ≥ 80 %, orange ≥ 50 %, green otherwise.
     var utilizationColor: Color {
         if utilization >= 80 { return .red }
         if utilization >= 50 { return .orange }
@@ -61,6 +75,7 @@ struct UsageWindow: Codable {
     }()
 }
 
+/// Pay-as-you-go credit usage, present when the account has extra usage enabled.
 struct ExtraUsage: Codable {
     let isEnabled: Bool
     let monthlyLimit: Double?
@@ -75,14 +90,17 @@ struct ExtraUsage: Codable {
     }
 }
 
+/// A claude.ai organization, used only to extract the UUID for usage API calls.
 struct Organization: Codable {
     let uuid: String
     let name: String
 }
 
+/// Account profile returned by `/api/account`.
 struct AccountInfo: Codable {
     let fullName: String?
     let emailAddress: String
+    /// Organization memberships; only the first entry is used to determine subscription tier.
     let memberships: [AccountMembership]?
 
     enum CodingKeys: String, CodingKey {
@@ -93,6 +111,11 @@ struct AccountInfo: Codable {
 
     var displayName: String { fullName ?? emailAddress }
 
+    /// Human-readable plan label derived from `capabilities` and `rate_limit_tier`.
+    ///
+    /// The API exposes no dedicated tier field. The tier is inferred by combining
+    /// the capability set (e.g. `"claude_max"`) with the tier slug string
+    /// (e.g. `"default_claude_max_5x"`). Returns `nil` for unrecognised or free accounts.
     var subscriptionLabel: String? {
         guard let org = memberships?.first?.organization else { return nil }
         let caps = Set(org.capabilities ?? [])
@@ -113,6 +136,7 @@ struct AccountMembership: Codable {
     let organization: AccountOrganization
 }
 
+/// Organization-level fields used to infer subscription tier.
 struct AccountOrganization: Codable {
     let capabilities: [String]?
     let rateLimitTier: String?
@@ -125,6 +149,7 @@ struct AccountOrganization: Codable {
 
 // MARK: - Menu Bar Display Option
 
+/// The rate-limit window whose utilization the menu bar label tracks.
 enum MenuBarWindow: String, CaseIterable, Identifiable {
     case fiveHour = "five_hour"
     case sevenDay = "seven_day"

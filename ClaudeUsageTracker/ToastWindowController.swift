@@ -1,12 +1,28 @@
 import AppKit
 import SwiftUI
 
+/// Displays a floating toast notification near the top-right corner of the screen.
+///
+/// The toast is a borderless, non-activating `NSPanel` with a transparent background so
+/// the SwiftUI `RoundedRectangle` material fills the visible area. Using `NSPanel` rather
+/// than an `NSWindow` prevents the notification from stealing keyboard focus or appearing
+/// in the application switcher.
+///
+/// Exact positioning at the menu bar icon is not possible through the `MenuBarExtra` API —
+/// the panel is placed at a fixed offset from the screen's top-right corner instead.
 @MainActor
 final class ToastWindowController {
     static let shared = ToastWindowController()
     private var panel: NSPanel?
     private var dismissTask: Task<Void, Never>?
 
+    /// Presents a toast, replacing any currently visible one.
+    ///
+    /// - Parameters:
+    ///   - title: Bold headline text.
+    ///   - message: Supporting detail shown below the title.
+    ///   - duration: Total visible time in seconds before the toast fades out. Ignored when `permanent` is `true`.
+    ///   - permanent: When `true`, the toast stays on screen until the user taps the close button.
     func show(title: String, message: String, duration: Double, permanent: Bool) {
         dismissTask?.cancel()
         panel?.close()
@@ -52,6 +68,7 @@ final class ToastWindowController {
 
         let fadeDuration = 0.3
         dismissTask = Task { [weak self] in
+            // Sleep for (duration - fadeDuration) so the total on-screen time equals `duration`.
             try? await Task.sleep(for: .seconds(max(0, duration - fadeDuration)))
             guard !Task.isCancelled else { return }
             self?.fadeAndClose(over: fadeDuration)

@@ -1,8 +1,15 @@
 import Foundation
 import WebKit
 
+/// Fetches usage and account data from the unofficial claude.ai web API.
+///
+/// Direct `URLSession` requests to claude.ai are blocked by Cloudflare's bot-detection layer.
+/// This service loads `claude.ai` in a hidden `WKWebView` and issues all API calls via
+/// `callAsyncJavaScript`, so requests originate from a real browser context with the correct
+/// cookies, headers, and TLS fingerprint — exactly as the web app does.
 @MainActor
 final class ClaudeAPIService: NSObject, WKNavigationDelegate {
+    /// The underlying web view, exposed so `LoginView` can embed it directly for in-app sign-in.
     let webView: WKWebView
 
     private var isPageReady = false
@@ -21,11 +28,19 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
 
     // MARK: - Login Support
 
+    /// Loads the claude.ai login page into the web view for in-app sign-in.
     func loadLoginPage() {
         isPageReady = false
         webView.load(URLRequest(url: URL(string: "https://claude.ai/login")!))
     }
 
+    /// Polls the shared cookie store every second until a `sessionKey` cookie appears.
+    ///
+    /// Cookie inspection requires an asynchronous callback into the cookie store; a timer
+    /// is more reliable here than a navigation-delegate approach because sign-in involves
+    /// multiple redirects before the final authenticated page sets the session cookie.
+    ///
+    /// - Parameter onFound: Called on the main thread with the session key value.
     func startCookiePolling(onFound: @escaping (String) -> Void) {
         cookieTimer?.invalidate()
         cookieTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
@@ -41,6 +56,7 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
         }
     }
 
+    /// Stops an in-progress cookie poll without invoking the callback.
     func stopCookiePolling() {
         cookieTimer?.invalidate()
         cookieTimer = nil
@@ -48,8 +64,13 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
 
     // MARK: - Page Readiness
 
-    /// Loads claude.ai in the webview so fetch() calls have the correct origin.
-    /// Concurrent callers all wait on the same load — no continuation is orphaned.
+    /// Ensures the web view has finished loading `claude.ai` so `fetch()` calls run with
+    /// the correct origin and session cookies.
+    ///
+    /// All concurrent callers share a single page load — each call appends a continuation
+    /// that is resumed together once the page is ready, preventing duplicate navigation requests.
+    ///
+    /// - Throws: `APIError.networkError` if the page fails to load.
     func ensureReady() async throws {
         if isPageReady { return }
         try await withCheckedThrowingContinuation { continuation in
@@ -70,7 +91,7 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
             guard let self else { return }
             let title = (result as? String) ?? ""
             if title.lowercased().contains("just a moment") {
-                // Still on Cloudflare challenge — wait for next didFinish
+                // Still on the Cloudflare challenge page — wait for the next didFinish event.
                 return
             }
             self.isPageReady = true
@@ -94,6 +115,10 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
 
     // MARK: - API Calls via WebView fetch()
 
+    /// Fetches the authenticated user's account profile.
+    ///
+    /// - Returns: An `AccountInfo` value containing name, email, and membership details.
+    /// - Throws: `APIError` on network failure, HTTP error, or JSON decode failure.
     func fetchAccountInfo() async throws -> AccountInfo {
         try await ensureReady()
         let result: Any?
@@ -115,6 +140,10 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
         return try JSONDecoder().decode(AccountInfo.self, from: data)
     }
 
+    /// Fetches current usage windows for the user's organisation.
+    ///
+    /// - Returns: A `UsageResponse` containing utilization percentages and reset timestamps.
+    /// - Throws: `APIError` on network failure, HTTP error, or JSON decode failure.
     func fetchUsage() async throws -> UsageResponse {
         try await ensureReady()
 
@@ -140,6 +169,9 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
         return try JSONDecoder().decode(UsageResponse.self, from: data)
     }
 
+    /// Clears the cached organisation ID and marks the page as not ready.
+    ///
+    /// Call this after sign-out or when a 401/403 response indicates the session is stale.
     func clearCache() {
         cachedOrgId = nil
         isPageReady = false
@@ -173,6 +205,11 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
         return id
     }
 
+    /// Translates JavaScript `Error` messages from `callAsyncJavaScript` into typed `APIError` values.
+    ///
+    /// `callAsyncJavaScript` propagates JS `throw` as a generic `NSError` whose description contains
+    /// the thrown string — e.g. `"HTTP_401"`. Status codes are matched by substring to handle
+    /// any wrapper text the WebKit runtime may add around the original message.
     private func mapJSError(_ error: Error) -> APIError {
         let msg = error.localizedDescription
         if msg.contains("HTTP_401") || msg.contains("HTTP_403") {
@@ -188,6 +225,7 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
     // MARK: - WKNavigationDelegate
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        // Only check readiness when callers are waiting; routine background navigations are ignored.
         if !readyWaiters.isEmpty {
             checkPageReady()
         }
@@ -198,13 +236,14 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        // Ignore cancellation errors (caused by redirects)
+        // NSURLErrorCancelled fires on every redirect — safe to ignore.
         if (error as NSError).code == NSURLErrorCancelled { return }
         failAllWaiters(with: APIError.networkError(error.localizedDescription))
     }
 
     // MARK: - Errors
 
+    /// Errors that can be thrown by API calls.
     enum APIError: LocalizedError {
         case noOrganization
         case invalidResponse

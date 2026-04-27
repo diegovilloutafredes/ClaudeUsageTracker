@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// The preferences window, opened via the Settings menu item or the "Settings" link in the popover.
 struct SettingsView: View {
     @ObservedObject var viewModel: UsageViewModel
 

@@ -34,7 +34,29 @@ cp -R "$APP" /Applications/
 open /Applications/ClaudeUsageTracker.app
 ```
 
-The `install.command` script at the repo root does all of this in one step.
+The `make release` command (see below) does the full build + package cycle. To install the resulting binary:
+
+```bash
+cd release/dist && bash install.command
+```
+
+## Cutting a release
+
+```bash
+make tag VERSION=1.2.0
+```
+
+This checks for a clean working directory, bumps `MARKETING_VERSION` in the Xcode project, commits the change, creates an annotated git tag, and pushes both the commit and the tag. The GitHub Actions release workflow triggers on the tag push and publishes a GitHub Release with the built zip attached.
+
+Release notes are auto-generated from commit messages between tags. Write commit messages as complete sentences describing what changed and why — they become the release changelog.
+
+## Future automation options
+
+The current release process (manual `make tag`) is intentionally simple. If the project grows, consider:
+
+- **[git-cliff](https://github.com/orhun/git-cliff)** — generates a `CHANGELOG.md` from conventional commit messages. Add `cliff.toml` at the repo root and run `git cliff --tag v1.x.0` before tagging to produce release notes.
+- **[Conventional Commits](https://www.conventionalcommits.org)** — a commit message convention (`feat:`, `fix:`, `chore:`) that tools like git-cliff and semantic-release parse to determine version bumps automatically.
+- **Automated version bump** — a GitHub Actions workflow on `main` that reads the latest tag, bumps the patch version, and opens a "Release v1.x.0" PR. Merge the PR to publish.
 
 ## Bundle ID note
 

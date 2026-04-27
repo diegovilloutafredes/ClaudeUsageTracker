@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// The popover content shown when the user clicks the menu bar icon.
 struct MenuBarView: View {
     @ObservedObject var viewModel: UsageViewModel
 
@@ -159,6 +160,7 @@ struct MenuBarView: View {
 
 // MARK: - Usage Window View
 
+/// A single rate-limit window row: title, utilization percentage, progress bar, and reset countdown.
 struct UsageWindowView: View {
     let title: String
     let window: UsageWindow

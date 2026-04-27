@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// Application entry point.
+///
+/// The app runs as a menu bar extra with no Dock icon (`LSUIElement` in Info.plist).
+/// `MenuBarExtra` uses `.window` style so the popover is a proper borderless window
+/// rather than a native menu — required for SwiftUI interactive controls to work correctly inside it.
 @main
 struct ClaudeUsageTrackerApp: App {
     @StateObject private var viewModel = UsageViewModel()

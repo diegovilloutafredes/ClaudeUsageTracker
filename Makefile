@@ -39,7 +39,12 @@ build:
 
 tag:
 	@if [ -z "$(VERSION)" ]; then echo "Usage: make tag VERSION=1.0.0"; exit 1; fi
+	@if [ -n "$$(git status --porcelain)" ]; then echo "Working directory is not clean — commit changes first"; exit 1; fi
+	@sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = $(VERSION)/g" $(PROJECT)/project.pbxproj
+	git add $(PROJECT)/project.pbxproj
+	git commit -m "Bump version to $(VERSION)"
 	git tag -a "v$(VERSION)" -m "v$(VERSION)"
+	git push origin main
 	git push origin "v$(VERSION)"
 
 clean:

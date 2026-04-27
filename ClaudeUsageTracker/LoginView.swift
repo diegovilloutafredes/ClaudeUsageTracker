@@ -3,10 +3,21 @@ import WebKit
 
 // MARK: - Login Window Controller
 
+/// Manages the lifecycle of the browser-based sign-in window.
+///
+/// Reuses a single `NSWindow` across calls — clicking "Sign in" while the window is already
+/// open brings it to front rather than creating a duplicate.
 final class LoginWindowController {
     static let shared = LoginWindowController()
     private var window: NSWindow?
 
+    /// Opens the sign-in window, or focuses it if already visible.
+    ///
+    /// - Parameters:
+    ///   - apiService: Provides the `WKWebView` to embed and the cookie-polling API.
+    ///   - onSessionFound: Called on the main thread once a session cookie is detected.
+    ///     The window closes automatically 1.5 s after this callback fires to let the
+    ///     user see the success state before it disappears.
     func open(apiService: ClaudeAPIService, onSessionFound: @escaping (String) -> Void) {
         if let existing = window, existing.isVisible {
             existing.makeKeyAndOrderFront(nil)
@@ -45,6 +56,7 @@ final class LoginWindowController {
 
 // MARK: - Login View
 
+/// Hosts the embedded web view and a status banner during and after sign-in.
 struct LoginView: View {
     let apiService: ClaudeAPIService
     let onSessionFound: (String) -> Void
@@ -99,6 +111,10 @@ struct LoginView: View {
 
 // MARK: - WebView Wrapper
 
+/// Embeds the `ClaudeAPIService` web view into a SwiftUI view hierarchy.
+///
+/// The web view is owned by `ClaudeAPIService` and shared between the login window and the
+/// hidden API context — this wrapper avoids creating a second instance.
 struct WebViewWrapper: NSViewRepresentable {
     let webView: WKWebView
 

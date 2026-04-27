@@ -4,20 +4,25 @@ import Combine
 import WebKit
 import UserNotifications
 
+/// Separate `NSObject` subclass required because `UNUserNotificationCenterDelegate` expects an
+/// `NSObject`, and assigning `self` (a `@MainActor` class) as the delegate from a non-isolated
+/// context produces a Swift concurrency compiler error.
 private final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // Show banner even when the app is frontmost; sound handled by NSSound
+        // Show the banner even when the app is frontmost; audio is handled separately by NSSound.
         completionHandler([.banner, .list])
     }
 }
 
+/// Central state for the app — owns API polling, UserDefaults persistence, and notification dispatch.
 @MainActor
 final class UsageViewModel: ObservableObject {
     @Published var refreshInterval: Double = 5.0
+    /// Which window's utilization the menu bar label tracks.
     @Published var menuBarWindow: MenuBarWindow = .fiveHour
     @Published var usage: UsageResponse?
     @Published var error: String?
@@ -26,14 +31,16 @@ final class UsageViewModel: ObservableObject {
     @Published var isAuthenticated = false
     @Published var accountInfo: AccountInfo?
 
-    // Which windows to watch
+    // MARK: Notification preferences
+
     @Published var notify5Hour: Bool = true
     @Published var notify7Day:  Bool = false
 
-    // Which channels to use
+    /// Stored under the key `"notifyOnReset"` in `UserDefaults` for backwards compatibility
+    /// with installations that had the earlier single-toggle banner preference.
+    @Published var notifyBanner:  Bool   = true
     @Published var notifyToast:   Bool   = true
     @Published var notifySound:   Bool   = true
-    @Published var notifyBanner:  Bool   = true   // stored under key "notifyOnReset" for compat
     @Published var toastDuration: Double = 3.0
     @Published var toastPermanent: Bool  = false
 
@@ -41,8 +48,12 @@ final class UsageViewModel: ObservableObject {
     private var timer: AnyCancellable?
     private var cancellables = Set<AnyCancellable>()
     private var fetchTask: Task<Void, Never>?
+    /// Increments on every failed fetch; drives exponential backoff in `applyBackoff()`.
     private var consecutiveErrors = 0
+    /// Tracks the `resetsAt` timestamp seen in the previous fetch for each window key.
+    /// A reset is inferred when this value changes AND utilization drops below 5 %.
     private var previousResetsAt: [String: String] = [:]
+    /// Avoids rebuilding `menuBarImage` when neither the icon name nor the status text has changed.
     private var cachedMenuBarKey = ""
     private var cachedMenuBarImage = NSImage()
     private let notificationDelegate = NotificationDelegate()
@@ -56,7 +67,8 @@ final class UsageViewModel: ObservableObject {
             menuBarWindow = window
         }
 
-        // v2: toast-only defaults (one-time migration resets existing installs)
+        // Version 2 migration: resets any earlier installation that may have had sound and banner
+        // enabled by default to the current toast-only defaults.
         if UserDefaults.standard.integer(forKey: "notificationDefaultsVersion") < 2 {
             UserDefaults.standard.set(false, forKey: "notifyOnReset")
             UserDefaults.standard.set(false, forKey: "notifySound")
@@ -122,6 +134,9 @@ final class UsageViewModel: ObservableObject {
 
     // MARK: - Session
 
+    /// Checks the shared WKWebView cookie store for an existing session without requiring sign-in.
+    ///
+    /// Called at launch so users who authenticated in a previous session bypass the sign-in prompt.
     func checkExistingSession() {
         WKWebsiteDataStore.default().httpCookieStore.getAllCookies { [weak self] cookies in
             let hasSession = cookies.contains { $0.name == "sessionKey" && $0.domain.contains("claude.ai") }
@@ -132,12 +147,14 @@ final class UsageViewModel: ObservableObject {
         }
     }
 
+    /// Called by the login flow once a session cookie has been detected.
     func handleSessionFound(_ key: String) {
         isAuthenticated = true
         error = nil
         startSession()
     }
 
+    /// Loads account info and starts the polling timer.
     func startSession() {
         Task { [weak self] in
             guard let self else { return }
@@ -148,6 +165,7 @@ final class UsageViewModel: ObservableObject {
         }
     }
 
+    /// Signs out by cancelling in-flight requests, clearing all state, and deleting claude.ai cookies.
     func signOut() {
         fetchTask?.cancel()
         fetchTask = nil
@@ -170,6 +188,7 @@ final class UsageViewModel: ObservableObject {
 
     // MARK: - Polling
 
+    /// Cancels any existing timer and starts a fresh polling cycle at `refreshInterval`.
     func startPolling() {
         timer?.cancel()
         timer = nil
@@ -182,6 +201,7 @@ final class UsageViewModel: ObservableObject {
             .sink { [weak self] _ in self?.fetchUsage() }
     }
 
+    /// Fetches the latest usage data, detects resets, and applies backoff on repeated failures.
     func fetchUsage() {
         guard isAuthenticated else { return }
         fetchTask?.cancel()
@@ -218,12 +238,14 @@ final class UsageViewModel: ObservableObject {
 
     // MARK: - Computed State
 
+    /// Highest utilization across the 5-hour and 7-day windows.
     var maxUtilization: Double {
         [usage?.fiveHour, usage?.sevenDay]
             .compactMap { $0?.utilization }
             .max() ?? 0
     }
 
+    /// Utilization of the window the user has selected for the menu bar label.
     var displayedUtilization: Double {
         guard let usage else { return 0 }
         switch menuBarWindow {
@@ -247,6 +269,13 @@ final class UsageViewModel: ObservableObject {
         return "bolt.fill"
     }
 
+    /// Composed SF Symbol + text image used as the menu bar label.
+    ///
+    /// `MenuBarExtra` label blocks do not reliably render `HStack { Image; Text }` or
+    /// `Label(text, systemImage:)` — the icon renders but the text is clipped or hidden.
+    /// The only reliable approach is to composite both elements into a single `NSImage`
+    /// with `isTemplate = true` for correct dark/light mode inversion.
+    /// The result is cached until either the icon name or the text changes.
     var menuBarImage: NSImage {
         let icon = statusIcon
         let text = statusText
@@ -281,6 +310,13 @@ final class UsageViewModel: ObservableObject {
 
     // MARK: - Reset Detection
 
+    /// Compares previous `resetsAt` timestamps to the new response to detect window resets.
+    ///
+    /// A window is considered reset when both of the following hold:
+    /// - The `resetsAt` timestamp has changed (the server issued a new window period), and
+    /// - Utilization has dropped below 5 % (guards against a timestamp refresh without an actual reset).
+    ///
+    /// On the first fetch (`old == nil`) timestamps are recorded as a baseline without firing a notification.
     private func checkForResets(old: UsageResponse?, new: UsageResponse) {
         guard old != nil else {
             recordResetsAt(new)
@@ -333,6 +369,7 @@ final class UsageViewModel: ObservableObject {
         if notifyBanner { sendBannerNotification(title: title, body: body) }
     }
 
+    /// Triggers a test notification through all currently enabled channels using a simulated reset.
     func sendTestNotification() {
         dispatchNotifications(windows: ["5-Hour Window"])
     }
@@ -341,7 +378,8 @@ final class UsageViewModel: ObservableObject {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body  = body
-        // No content.sound — NSSound handles audio separately
+        // Sound is omitted here; NSSound handles audio independently to prevent double-play
+        // when both the sound and banner channels are enabled simultaneously.
 
         let request = UNNotificationRequest(
             identifier: "usage-reset-\(Date().timeIntervalSince1970)",
@@ -357,6 +395,10 @@ final class UsageViewModel: ObservableObject {
 
     // MARK: - Private
 
+    /// Replaces the polling timer with one firing at an escalating interval.
+    ///
+    /// The backoff adds 10 s per consecutive error up to a cap of 60 s above the base `refreshInterval`.
+    /// The error message is updated to show the effective retry delay.
     private func applyBackoff() {
         timer?.cancel()
         let backoff = min(Double(consecutiveErrors) * 10, 60)
