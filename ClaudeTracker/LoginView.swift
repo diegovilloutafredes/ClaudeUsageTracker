@@ -41,6 +41,7 @@ final class LoginWindowController {
             defer: false
         )
         window.title = "Sign in to Claude"
+        window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: loginView)
         window.center()
         window.makeKeyAndOrderFront(nil)

@@ -63,9 +63,9 @@ final class UsageViewModel: ObservableObject {
     private var fetchTask: Task<Void, Never>?
     /// Increments on every failed fetch; drives exponential backoff in `applyBackoff()`.
     private var consecutiveErrors = 0
-    /// Tracks the `resetsAt` timestamp seen in the previous fetch for each window key.
-    /// A reset is inferred when this value changes AND utilization drops below 5 %.
-    private var previousResetsAt: [String: String] = [:]
+    /// Tracks the parsed `resetsAt` date seen in the previous fetch for each window key.
+    /// A reset is inferred when the new date is > 1 hour later AND utilization drops below 5 %.
+    private var previousResetsAt: [String: Date] = [:]
     /// Avoids rebuilding `menuBarImage` when neither the icon name nor the status text has changed.
     private var cachedMenuBarKey = ""
     private var cachedMenuBarImage = NSImage()
@@ -385,17 +385,19 @@ final class UsageViewModel: ObservableObject {
         var resets: [String] = []
 
         if notify5Hour,
-           let oldTs = previousResetsAt["five_hour"],
+           let oldDate = previousResetsAt["five_hour"],
            let newWindow = new.fiveHour,
-           newWindow.resetsAt != oldTs,
+           let newDate = newWindow.resetsAtDate,
+           newDate.timeIntervalSince(oldDate) > 3600,
            newWindow.utilization < 5 {
             resets.append("5-Hour Window")
         }
 
         if notify7Day,
-           let oldTs = previousResetsAt["seven_day"],
+           let oldDate = previousResetsAt["seven_day"],
            let newWindow = new.sevenDay,
-           newWindow.resetsAt != oldTs,
+           let newDate = newWindow.resetsAtDate,
+           newDate.timeIntervalSince(oldDate) > 3600,
            newWindow.utilization < 5 {
             resets.append("7-Day Window")
         }
@@ -408,8 +410,8 @@ final class UsageViewModel: ObservableObject {
     }
 
     private func recordResetsAt(_ response: UsageResponse) {
-        if let w = response.fiveHour { previousResetsAt["five_hour"] = w.resetsAt }
-        if let w = response.sevenDay  { previousResetsAt["seven_day"]  = w.resetsAt }
+        if let w = response.fiveHour, let d = w.resetsAtDate { previousResetsAt["five_hour"] = d }
+        if let w = response.sevenDay,  let d = w.resetsAtDate { previousResetsAt["seven_day"]  = d }
     }
 
     // MARK: - Notification Dispatch

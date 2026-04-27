@@ -12,6 +12,8 @@ A macOS menu bar app that shows your [Claude AI](https://claude.ai) usage limits
 - Reset countdowns with relative time display ("resets in 3 hours")
 - Menu bar label showing the selected window's utilization percentage at a glance
 - Subscription badge (Pro, Max 5x, Max 20x, Team, Enterprise)
+- **Pace indicator** — shows current consumption rate (%/hr) and projected time to full; configurable rate window (5/10/15/30 min)
+- **Pace alerts** — toast/sound/banner notification when a window is projected to fill before it resets
 - Configurable notifications when a window resets: toast near the menu bar, sound, and system banner
   - Toast duration slider (1-30 s) or permanent mode until dismissed
 - Configurable refresh interval (1-60 seconds, default 5 s)
