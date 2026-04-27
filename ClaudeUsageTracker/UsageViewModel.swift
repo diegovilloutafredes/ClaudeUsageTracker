@@ -57,6 +57,8 @@ final class UsageViewModel: ObservableObject {
     private var cachedMenuBarKey = ""
     private var cachedMenuBarImage = NSImage()
     private let notificationDelegate = NotificationDelegate()
+    /// Rolling utilization history per window key, used to compute consumption pace.
+    private var utilizationHistory: [String: [(Date, Double)]] = [:]
 
     init() {
         let saved = UserDefaults.standard.double(forKey: "refreshInterval")
@@ -177,6 +179,7 @@ final class UsageViewModel: ObservableObject {
         accountInfo = nil
         isAuthenticated = false
         previousResetsAt = [:]
+        utilizationHistory = [:]
         apiService.clearCache()
         let store = WKWebsiteDataStore.default()
         store.httpCookieStore.getAllCookies { cookies in
@@ -212,6 +215,7 @@ final class UsageViewModel: ObservableObject {
                 let response = try await apiService.fetchUsage()
                 guard !Task.isCancelled else { return }
                 checkForResets(old: usage, new: response)
+                recordHistory(response)
                 usage = response
                 error = nil
                 lastUpdated = Date()
@@ -394,6 +398,50 @@ final class UsageViewModel: ObservableObject {
     }
 
     // MARK: - Private
+
+    // MARK: - Pace
+
+    /// Appends the current utilization readings to the rolling history for each window.
+    ///
+    /// Readings older than 15 minutes are discarded. If utilization for a window drops by
+    /// more than 20 percentage points compared to the last recorded value, the history is
+    /// cleared first — this handles window resets, which drop utilization back to near zero.
+    private func recordHistory(_ response: UsageResponse) {
+        let now = Date()
+        let cutoff = now.addingTimeInterval(-15 * 60)
+
+        func append(key: String, utilization: Double?) {
+            guard let utilization else { return }
+            var history = utilizationHistory[key] ?? []
+            if let last = history.last, utilization < last.1 - 20 {
+                history = []
+            }
+            history.append((now, utilization))
+            utilizationHistory[key] = history.filter { $0.0 >= cutoff }
+        }
+
+        append(key: "five_hour", utilization: response.fiveHour?.utilization)
+        append(key: "seven_day", utilization: response.sevenDay?.utilization)
+    }
+
+    /// Returns the current consumption rate and projected time to full for a window.
+    ///
+    /// Requires at least two minutes of history to produce a meaningful rate.
+    /// Returns `nil` when the rate is negligible (≤ 0.1 %/hr) or data is insufficient.
+    ///
+    /// - Parameter key: The window key — `"five_hour"` or `"seven_day"`.
+    func pace(for key: String) -> (rate: Double, projectedHours: Double?)? {
+        guard let history = utilizationHistory[key], history.count >= 2 else { return nil }
+        let oldest = history.first!
+        let newest = history.last!
+        let elapsed = newest.0.timeIntervalSince(oldest.0) / 3600.0
+        guard elapsed >= (2.0 / 60.0) else { return nil }
+        let rate = (newest.1 - oldest.1) / elapsed
+        guard rate > 0.1 else { return nil }
+        let remaining = 100.0 - newest.1
+        let projectedHours: Double? = remaining > 0 ? remaining / rate : nil
+        return (rate, projectedHours)
+    }
 
     /// Replaces the polling timer with one firing at an escalating interval.
     ///

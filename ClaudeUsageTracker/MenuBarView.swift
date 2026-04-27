@@ -31,10 +31,6 @@ struct MenuBarView: View {
                     .background(Color.purple.opacity(0.15), in: Capsule())
                     .foregroundStyle(Color.purple)
             }
-            if viewModel.isLoading {
-                ProgressView()
-                    .controlSize(.small)
-            }
         }
     }
 
@@ -93,7 +89,7 @@ struct MenuBarView: View {
         }
 
         ForEach(usage.allWindows, id: \.0) { title, window in
-            UsageWindowView(title: title, window: window)
+            windowRow(title: title, window: window)
         }
 
         if let extra = usage.extraUsage, extra.isEnabled {
@@ -133,6 +129,17 @@ struct MenuBarView: View {
         }
     }
 
+    private func windowRow(title: String, window: UsageWindow) -> some View {
+        let key = title == "5-Hour Window" ? "five_hour" : "seven_day"
+        let pace = viewModel.pace(for: key)
+        return UsageWindowView(
+            title: title,
+            window: window,
+            paceRate: pace?.rate,
+            projectedHours: pace?.projectedHours
+        )
+    }
+
     // MARK: - Footer
 
     private var footer: some View {
@@ -141,6 +148,10 @@ struct MenuBarView: View {
                 Text("Updated \(lastUpdated, style: .relative) ago")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+            }
+            if viewModel.isLoading {
+                ProgressView()
+                    .controlSize(.mini)
             }
             Spacer()
             SettingsLink {
@@ -160,10 +171,14 @@ struct MenuBarView: View {
 
 // MARK: - Usage Window View
 
-/// A single rate-limit window row: title, utilization percentage, progress bar, and reset countdown.
+/// A single rate-limit window row: title, utilization percentage, progress bar, reset countdown, and pace.
 struct UsageWindowView: View {
     let title: String
     let window: UsageWindow
+    /// Current consumption rate in %/hr. `nil` when there is not yet enough history.
+    var paceRate: Double? = nil
+    /// Projected hours until the window reaches 100 % at the current rate. `nil` when unknown.
+    var projectedHours: Double? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -188,7 +203,40 @@ struct UsageWindowView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             }
+
+            if let rate = paceRate {
+                paceLine(rate: rate)
+            }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// Shows the consumption rate and, when relevant, a projected time to full.
+    ///
+    /// Turns orange when the window is projected to reach 100 % before it resets,
+    /// giving the user an at-a-glance signal that they should pace themselves.
+    private func paceLine(rate: Double) -> some View {
+        let concerning: Bool = {
+            guard let proj = projectedHours, let resetDate = window.resetsAtDate else { return false }
+            let hoursToReset = resetDate.timeIntervalSinceNow / 3600
+            return hoursToReset > 0 && proj < hoursToReset
+        }()
+
+        let rateText = String(format: "+%.1f%%/hr", rate)
+        let projText: String? = projectedHours.flatMap { h in
+            guard h < 24 else { return nil }
+            if h < 1 { return "· full in \(max(1, Int(h * 60)))m" }
+            let hrs = Int(h)
+            let mins = Int((h - Double(hrs)) * 60)
+            return mins > 0 ? "· full in \(hrs)h \(mins)m" : "· full in \(hrs)h"
+        }
+
+        return HStack(spacing: 4) {
+            Image(systemName: "chart.line.uptrend.xyaxis")
+                .accessibilityHidden(true)
+            Text([rateText, projText].compactMap { $0 }.joined(separator: " "))
+        }
+        .font(.caption2)
+        .foregroundStyle(concerning ? Color.orange : Color.secondary)
     }
 }
