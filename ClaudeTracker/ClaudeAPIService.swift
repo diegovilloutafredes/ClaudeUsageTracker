@@ -8,7 +8,7 @@ import WebKit
 /// `callAsyncJavaScript`, so requests originate from a real browser context with the correct
 /// cookies, headers, and TLS fingerprint — exactly as the web app does.
 @MainActor
-final class ClaudeAPIService: NSObject, WKNavigationDelegate {
+final class ClaudeAPIService: NSObject, WKNavigationDelegate, WKUIDelegate {
     /// The underlying web view, exposed so `LoginView` can embed it directly for in-app sign-in.
     let webView: WKWebView
 
@@ -24,6 +24,7 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
         self.webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 1, height: 1), configuration: config)
         super.init()
         self.webView.navigationDelegate = self
+        self.webView.uiDelegate = self
     }
 
     // MARK: - Login Support
@@ -45,7 +46,12 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
         cookieTimer?.invalidate()
         cookieTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
-                if let session = cookies.first(where: { $0.name == "sessionKey" && $0.domain.contains("claude.ai") }) {
+                let claudeCookies = cookies.filter { $0.domain.contains("claude.ai") || $0.domain.contains("anthropic.com") }
+                if !claudeCookies.isEmpty {
+                    let names = claudeCookies.map(\.name).joined(separator: ", ")
+                    print("[ClaudeTracker] Cookies visible during login poll: \(names)")
+                }
+                if let session = cookies.first(where: { $0.name == "sessionKey" && ($0.domain.contains("claude.ai") || $0.domain.contains("anthropic.com")) }) {
                     DispatchQueue.main.async {
                         self?.cookieTimer?.invalidate()
                         self?.cookieTimer = nil
@@ -220,6 +226,22 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate {
         if msg.contains("HTTP_429") { return .rateLimited }
         if msg.contains("HTTP_") { return .httpError(msg) }
         return .networkError(msg)
+    }
+
+    // MARK: - WKUIDelegate
+
+    /// Routes popup/new-window requests (e.g. OAuth SSO flows) back into the
+    /// same webview instead of silently dropping them.
+    func webView(
+        _ webView: WKWebView,
+        createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures
+    ) -> WKWebView? {
+        if let url = navigationAction.request.url {
+            webView.load(URLRequest(url: url))
+        }
+        return nil
     }
 
     // MARK: - WKNavigationDelegate

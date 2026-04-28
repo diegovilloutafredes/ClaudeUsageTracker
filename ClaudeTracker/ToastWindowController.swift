@@ -34,7 +34,8 @@ final class ToastWindowController {
     ///   - message: Supporting detail shown below the title.
     ///   - duration: Total visible time in seconds before the toast fades out. Ignored when `permanent` is `true`.
     ///   - permanent: When `true`, the toast stays on screen until the user taps the close button.
-    func show(title: String, message: String, duration: Double, permanent: Bool) {
+    @discardableResult
+    func show(title: String, message: String, duration: Double, permanent: Bool) -> UUID {
         let id = UUID()
         let panel = makePanel()
 
@@ -55,7 +56,7 @@ final class ToastWindowController {
             panel.animator().alphaValue = 1
         }
 
-        guard !permanent else { return }
+        guard !permanent else { return id }
 
         let fadeDuration = 0.3
         let task = Task { [weak self] in
@@ -66,9 +67,10 @@ final class ToastWindowController {
         if let idx = entries.firstIndex(where: { $0.id == id }) {
             entries[idx].dismissTask = task
         }
+        return id
     }
 
-    private func dismiss(id: UUID) {
+    func dismiss(id: UUID) {
         guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
         entries[idx].dismissTask?.cancel()
         fadeAndClose(id: id, over: 0.2)

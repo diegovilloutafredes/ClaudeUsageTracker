@@ -5,6 +5,9 @@ struct SettingsView: View {
     @ObservedObject var viewModel: UsageViewModel
 
     var body: some View {
+        let sf = NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let w  = (sf.width / 3).rounded()
+
         Form {
             accountSection
             displaySection
@@ -13,7 +16,8 @@ struct SettingsView: View {
             refreshSection
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 700)
+        .frame(minWidth: w, idealWidth: w, maxWidth: w, maxHeight: .infinity)
+        .background(SettingsWindowPositioner(targetWidth: w))
     }
 
     // MARK: - Account
@@ -82,7 +86,19 @@ struct SettingsView: View {
                 }
             }
 
+            HStack(spacing: 10) {
+                Text("Popup size")
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
+                Slider(value: $viewModel.popupScale, in: 0.75...1.5, step: 0.05)
+                Text("\(Int((viewModel.popupScale * 100).rounded()))%")
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(width: 40, alignment: .trailing)
+            }
+
             Toggle("Show pace indicator", isOn: $viewModel.showPace)
+                .toggleStyle(GreenSwitchStyle())
 
             if viewModel.showPace {
                 HStack(spacing: 10) {
@@ -108,6 +124,7 @@ struct SettingsView: View {
     private var paceSection: some View {
         Section {
             Toggle("Notify when approaching limit", isOn: $viewModel.notifyPace)
+                .toggleStyle(GreenSwitchStyle())
 
             if viewModel.notifyPace {
                 HStack(spacing: 10) {
@@ -136,6 +153,7 @@ struct SettingsView: View {
                         }
                         Toggle("Stay until dismissed", isOn: $viewModel.paceToastPermanent)
                             .font(.callout)
+                            .toggleStyle(GreenSwitchStyle())
                     }
                     .padding(.leading, 20)
                 }
@@ -155,7 +173,9 @@ struct SettingsView: View {
         Section("Window Reset Notifications") {
             Group {
                 Toggle("5-Hour window resets", isOn: $viewModel.notify5Hour)
+                    .toggleStyle(GreenSwitchStyle())
                 Toggle("7-Day window resets",  isOn: $viewModel.notify7Day)
+                    .toggleStyle(GreenSwitchStyle())
             }
 
             Divider()
@@ -163,6 +183,7 @@ struct SettingsView: View {
 
             Group {
                 Toggle("Toast near menu bar", isOn: $viewModel.notifyToast)
+                    .toggleStyle(GreenSwitchStyle())
 
                 if viewModel.notifyToast {
                     VStack(alignment: .leading, spacing: 6) {
@@ -179,12 +200,15 @@ struct SettingsView: View {
                         }
                         Toggle("Stay until dismissed", isOn: $viewModel.toastPermanent)
                             .font(.callout)
+                            .toggleStyle(GreenSwitchStyle())
                     }
                     .padding(.leading, 20)
                 }
 
                 Toggle("Sound",                      isOn: $viewModel.notifySound)
+                    .toggleStyle(GreenSwitchStyle())
                 Toggle("System notification banner", isOn: $viewModel.notifyBanner)
+                    .toggleStyle(GreenSwitchStyle())
             }
 
             Divider()
@@ -204,13 +228,68 @@ struct SettingsView: View {
 
     private var refreshSection: some View {
         Section("Refresh Interval") {
-            HStack(spacing: 10) {
-                Slider(value: $viewModel.refreshInterval, in: 1...60, step: 1)
-                Text("\(Int(viewModel.refreshInterval))s")
-                    .font(.body.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .frame(width: 36, alignment: .trailing)
+            LabeledContent("Poll every") {
+                HStack(spacing: 10) {
+                    Slider(value: $viewModel.refreshInterval, in: 1...60, step: 1)
+                    Text("\(Int(viewModel.refreshInterval))s")
+                        .font(.callout.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, alignment: .trailing)
+                }
             }
         }
     }
+}
+
+// MARK: - Green Switch Toggle Style
+
+/// Custom toggle style that renders an always-green switch regardless of the system
+/// accent color or SwiftUI environment tint. Uses a drawn capsule+circle so no
+/// native NSSwitch environment plumbing is involved — immune to Form cell isolation.
+private struct GreenSwitchStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+            Spacer()
+            ZStack {
+                Capsule()
+                    .fill(configuration.isOn ? Color.green : Color.secondary.opacity(0.35))
+                    .frame(width: 38, height: 22)
+                Circle()
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.22), radius: 1.5, x: 0, y: 1)
+                    .frame(width: 18, height: 18)
+                    .offset(x: configuration.isOn ? 8 : -8)
+            }
+            .animation(.easeInOut(duration: 0.15), value: configuration.isOn)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { configuration.isOn.toggle() }
+    }
+}
+
+// MARK: - Window Positioner
+
+/// Captures the exact NSWindow that hosts SettingsView so we can position it
+/// relative to the screen without relying on NSApp.keyWindow, which could be
+/// any window (e.g. the Login window) if focus changed between onAppear and the
+/// async dispatch.
+private struct SettingsWindowPositioner: NSViewRepresentable {
+    let targetWidth: CGFloat
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            guard let window = view.window, let screen = NSScreen.main else { return }
+            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+            window.title = "Settings · v\(version)"
+            let sf  = screen.frame
+            let mbh = sf.maxY - screen.visibleFrame.maxY
+            let x   = (sf.midX - targetWidth / 2).rounded()
+            window.setFrame(CGRect(x: x, y: sf.minY, width: targetWidth, height: sf.height - mbh), display: true)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }

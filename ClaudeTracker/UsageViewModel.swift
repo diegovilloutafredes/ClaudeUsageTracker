@@ -56,6 +56,8 @@ final class UsageViewModel: ObservableObject {
     @Published var paceToastPermanent: Bool = false
     /// Rolling history window in minutes; older samples are discarded.
     @Published var paceHistoryMinutes: Double = 15
+    /// Multiplier applied to all spacing, padding, font sizes, and width in the popover.
+    @Published var popupScale: Double = 1.0
 
     let apiService = ClaudeAPIService()
     private var timer: AnyCancellable?
@@ -74,6 +76,8 @@ final class UsageViewModel: ObservableObject {
     private var utilizationHistory: [String: [(Date, Double)]] = [:]
     /// Window keys for which a pace alert has already fired in the current window period.
     private var paceWarned: Set<String> = []
+    /// Toast IDs for active pace alerts, keyed by window key, so they can be dismissed when pace improves.
+    private var paceToastIDs: [String: UUID] = [:]
 
     init() {
         let saved = UserDefaults.standard.double(forKey: "refreshInterval")
@@ -112,6 +116,14 @@ final class UsageViewModel: ObservableObject {
         paceToastPermanent = UserDefaults.standard.object(forKey: "paceToastPermanent") as? Bool ?? false
         let savedHistory = UserDefaults.standard.double(forKey: "paceHistoryMinutes")
         paceHistoryMinutes = savedHistory > 0 ? savedHistory : 15
+        // v1: rebase — old 1.0 was the original size; new 1.0 matches old 1.1 (base constants grew ×1.1).
+        // Reset any saved scale so existing users see the new default appearance unchanged.
+        if UserDefaults.standard.object(forKey: "popupScaleRebased") == nil {
+            UserDefaults.standard.set(1.0, forKey: "popupScale")
+            UserDefaults.standard.set(1, forKey: "popupScaleRebased")
+        }
+        let savedPopupScale = UserDefaults.standard.double(forKey: "popupScale")
+        popupScale = savedPopupScale > 0 ? savedPopupScale : 1.0
 
         $menuBarWindow
             .dropFirst().removeDuplicates()
@@ -175,6 +187,10 @@ final class UsageViewModel: ObservableObject {
 
         $paceHistoryMinutes.dropFirst().removeDuplicates()
             .sink { UserDefaults.standard.set($0, forKey: "paceHistoryMinutes") }
+            .store(in: &cancellables)
+
+        $popupScale.dropFirst().removeDuplicates()
+            .sink { UserDefaults.standard.set($0, forKey: "popupScale") }
             .store(in: &cancellables)
 
         UNUserNotificationCenter.current().delegate = notificationDelegate
@@ -285,9 +301,13 @@ final class UsageViewModel: ObservableObject {
                 consecutiveErrors += 1
                 error = err.localizedDescription
                 if case .unauthorized = err {
-                    isAuthenticated = false
-                    timer?.cancel()
-                    timer = nil
+                    if consecutiveErrors > 1 {
+                        isAuthenticated = false
+                        timer?.cancel()
+                        timer = nil
+                    }
+                    // First 401: mapJSError already cleared isPageReady;
+                    // next poll reloads the page and retries automatically.
                 } else if case .rateLimited = err {
                     applyBackoff()
                 }
@@ -487,6 +507,9 @@ final class UsageViewModel: ObservableObject {
             if let last = history.last, utilization < last.1 - 20 {
                 history = []
                 paceWarned.remove(key)
+                if let tid = paceToastIDs.removeValue(forKey: key) {
+                    ToastWindowController.shared.dismiss(id: tid)
+                }
             }
             history.append((now, utilization))
             utilizationHistory[key] = history.filter { $0.0 >= cutoff }
@@ -513,19 +536,21 @@ final class UsageViewModel: ObservableObject {
         for (key, name, watched) in candidates {
             guard watched else { continue }
             let paceData = pace(for: key)
-            if let pd = paceData,
-               let projHours = pd.projectedHours,
-               projHours * 60 < paceWarningMinutes,
-               !paceWarned.contains(key) {
+            let isConcerning = paceData.flatMap(\.projectedHours).map { $0 * 60 < paceWarningMinutes } ?? false
+            if isConcerning, !paceWarned.contains(key), let pd = paceData, let projHours = pd.projectedHours {
                 paceWarned.insert(key)
                 let minsLeft = max(1, Int(projHours * 60))
                 let title = "Approaching usage limit"
                 let body  = "\(name) fills in \(minsLeft) min at \(String(format: "%.1f", pd.rate))%/hr"
-                if notifyToast  { ToastWindowController.shared.show(title: title, message: body, duration: paceToastDuration, permanent: paceToastPermanent) }
+                if notifyToast  { paceToastIDs[key] = ToastWindowController.shared.show(title: title, message: body, duration: paceToastDuration, permanent: paceToastPermanent) }
                 if notifySound  { NSSound(named: NSSound.Name("Glass"))?.play() }
                 if notifyBanner { sendBannerNotification(title: title, body: body) }
-            } else if paceData == nil {
-                paceWarned.remove(key)
+            } else if !isConcerning, paceWarned.contains(key) {
+                // Pace improved past the threshold — dismiss the alert even if set to permanent.
+                if let tid = paceToastIDs.removeValue(forKey: key) {
+                    ToastWindowController.shared.dismiss(id: tid)
+                }
+                if paceData == nil { paceWarned.remove(key) }
             }
         }
     }

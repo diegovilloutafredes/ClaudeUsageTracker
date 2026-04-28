@@ -4,15 +4,21 @@ import SwiftUI
 struct MenuBarView: View {
     @ObservedObject var viewModel: UsageViewModel
 
+    private let baseWidth: CGFloat = 312
+    private var s: CGFloat { CGFloat(viewModel.popupScale) }
+    private func sf(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        .system(size: size * s, weight: weight)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 17 * s) {
             header
             content
             Divider()
             footer
         }
-        .padding()
-        .frame(width: 320)
+        .padding(19 * s)
+        .frame(width: baseWidth * s)
     }
 
     // MARK: - Header
@@ -21,13 +27,13 @@ struct MenuBarView: View {
     private var header: some View {
         HStack {
             Text("Claude Tracker")
-                .font(.headline)
+                .font(sf(14, .semibold))
             Spacer()
             if let sub = viewModel.accountInfo?.subscriptionLabel {
                 Text(sub)
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .font(sf(10, .semibold))
+                    .padding(.horizontal, 6 * s)
+                    .padding(.vertical, 2 * s)
                     .background(Color.purple.opacity(0.15), in: Capsule())
                     .foregroundStyle(Color.purple)
             }
@@ -51,13 +57,13 @@ struct MenuBarView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 11 * s) {
             Image(systemName: "person.crop.circle.badge.questionmark")
-                .font(.title)
+                .font(sf(23))
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
             Text("Not signed in")
-                .font(.subheadline)
+                .font(sf(12))
                 .foregroundStyle(.secondary)
 
             Button {
@@ -72,24 +78,26 @@ struct MenuBarView: View {
             .buttonStyle(.borderedProminent)
 
             Text("Opens Claude in a browser window.")
-                .font(.caption)
+                .font(sf(11))
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .padding(.vertical, 8 * s)
     }
 
     @ViewBuilder
     private func usageWindows(_ usage: UsageResponse) -> some View {
         if let error = viewModel.error {
             Label(error, systemImage: "exclamationmark.triangle")
-                .font(.caption)
+                .font(sf(11))
                 .foregroundStyle(.orange)
         }
 
-        ForEach(usage.allWindows, id: \.0) { title, window in
-            windowRow(title: title, window: window)
+        VStack(alignment: .leading, spacing: 17 * s) {
+            ForEach(usage.allWindows, id: \.0) { title, window in
+                windowRow(title: title, window: window)
+            }
         }
 
         if let extra = usage.extraUsage, extra.isEnabled {
@@ -98,10 +106,10 @@ struct MenuBarView: View {
     }
 
     private func errorView(_ error: String) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 8 * s) {
             Label(error, systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.red)
-                .font(.subheadline)
+                .font(sf(12))
 
             Button("Sign in again") {
                 LoginWindowController.shared.open(
@@ -113,17 +121,17 @@ struct MenuBarView: View {
             .controlSize(.small)
         }
         .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.vertical, 8)
+        .padding(.vertical, 8 * s)
     }
 
     @ViewBuilder
     private func extraUsageView(_ extra: ExtraUsage) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 4 * s) {
             Text("Extra Usage")
-                .font(.subheadline.bold())
+                .font(sf(12, .bold))
             if let used = extra.usedCredits, let limit = extra.monthlyLimit {
                 Text(String(format: "$%.2f / $%.2f", used, limit))
-                    .font(.caption)
+                    .font(sf(11))
                     .foregroundStyle(.secondary)
             }
         }
@@ -136,7 +144,8 @@ struct MenuBarView: View {
             title: title,
             window: window,
             paceRate: pace?.rate,
-            projectedHours: pace?.projectedHours
+            projectedHours: pace?.projectedHours,
+            scale: s
         )
     }
 
@@ -146,7 +155,7 @@ struct MenuBarView: View {
         HStack {
             if let lastUpdated = viewModel.lastUpdated {
                 Text("Updated \(lastUpdated, style: .relative) ago")
-                    .font(.caption2)
+                    .font(sf(11))
                     .foregroundStyle(.secondary)
             }
             if viewModel.isLoading {
@@ -156,7 +165,7 @@ struct MenuBarView: View {
             Spacer()
             SettingsLink {
                 Text("Settings")
-                    .font(.caption)
+                    .font(sf(11))
             }
             .buttonStyle(.link)
 
@@ -164,7 +173,7 @@ struct MenuBarView: View {
                 NSApplication.shared.terminate(nil)
             }
             .buttonStyle(.link)
-            .font(.caption)
+            .font(sf(11))
         }
     }
 }
@@ -175,19 +184,22 @@ struct MenuBarView: View {
 struct UsageWindowView: View {
     let title: String
     let window: UsageWindow
-    /// Current consumption rate in %/hr. `nil` when there is not yet enough history.
     var paceRate: Double? = nil
-    /// Projected hours until the window reaches 100 % at the current rate. `nil` when unknown.
     var projectedHours: Double? = nil
+    var scale: CGFloat = 1.0
+
+    private func sf(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        .system(size: size * scale, weight: weight)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6 * scale) {
             HStack {
                 Text(title)
-                    .font(.subheadline.bold())
+                    .font(sf(12, .bold))
                 Spacer()
                 Text("\(Int(window.utilization))%")
-                    .font(.subheadline.monospacedDigit().bold())
+                    .font(.system(size: 12 * scale, weight: .bold).monospacedDigit())
                     .foregroundStyle(window.utilizationColor)
             }
 
@@ -200,7 +212,7 @@ struct UsageWindowView: View {
                         .accessibilityHidden(true)
                     Text("Resets \(resetDate, style: .relative)")
                 }
-                .font(.caption2)
+                .font(sf(11))
                 .foregroundStyle(.secondary)
             }
 
@@ -211,10 +223,6 @@ struct UsageWindowView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// Shows the consumption rate and, when relevant, a projected time to full.
-    ///
-    /// Turns orange when the window is projected to reach 100 % before it resets,
-    /// giving the user an at-a-glance signal that they should pace themselves.
     private func paceLine(rate: Double) -> some View {
         let concerning: Bool = {
             guard let proj = projectedHours, let resetDate = window.resetsAtDate else { return false }
@@ -236,7 +244,7 @@ struct UsageWindowView: View {
                 .accessibilityHidden(true)
             Text([rateText, projText].compactMap { $0 }.joined(separator: " "))
         }
-        .font(.caption2)
+        .font(sf(11))
         .foregroundStyle(concerning ? Color.orange : Color.secondary)
     }
 }

@@ -20,5 +20,6 @@ struct ClaudeTrackerApp: App {
         Settings {
             SettingsView(viewModel: viewModel)
         }
+        .windowResizability(.contentSize)
     }
 }
