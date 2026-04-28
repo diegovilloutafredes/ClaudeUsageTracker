@@ -22,6 +22,8 @@ private final class NotificationDelegate: NSObject, UNUserNotificationCenterDele
 @MainActor
 final class UsageViewModel: ObservableObject {
     @Published var refreshInterval: Double = 5.0
+    @Published var availableUpdate: UpdateInfo? = nil
+    @Published var isCheckingForUpdates = false
     /// Which window's utilization the menu bar label tracks.
     @Published var menuBarWindow: MenuBarWindow = .fiveHour
     @Published var usage: UsageResponse?
@@ -196,6 +198,7 @@ final class UsageViewModel: ObservableObject {
         UNUserNotificationCenter.current().delegate = notificationDelegate
         requestNotificationPermission()
         checkExistingSession()
+        Task { try? await Task.sleep(for: .seconds(10)); checkForUpdates() }
 
         NSApp.publisher(for: \.effectiveAppearance)
             .dropFirst()
@@ -572,6 +575,32 @@ final class UsageViewModel: ObservableObject {
         let remaining = 100.0 - newest.1
         let projectedHours: Double? = remaining > 0 ? remaining / rate : nil
         return (rate, projectedHours)
+    }
+
+    // MARK: - Update Check
+
+    /// Checks GitHub Releases for a newer version and populates `availableUpdate` if found.
+    /// Safe to call multiple times; debounced by `isCheckingForUpdates`.
+    func checkForUpdates() {
+        guard !isCheckingForUpdates else { return }
+        isCheckingForUpdates = true
+        Task {
+            defer { isCheckingForUpdates = false }
+            guard let url = URL(string: "https://api.github.com/repos/diegovilloutafredes/ClaudeTracker/releases/latest") else { return }
+            var req = URLRequest(url: url)
+            req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            req.timeoutInterval = 10
+            guard let (data, _) = try? await URLSession.shared.data(for: req),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let tag = json["tag_name"] as? String,
+                  let htmlUrl = json["html_url"] as? String,
+                  let releaseUrl = URL(string: htmlUrl) else { return }
+            let remote  = tag.trimmingCharacters(in: .init(charactersIn: "v"))
+            let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+            if remote.compare(current, options: .numeric) == .orderedDescending {
+                availableUpdate = UpdateInfo(version: remote, releaseURL: releaseUrl)
+            }
+        }
     }
 
     /// Replaces the polling timer with one firing at an escalating interval.

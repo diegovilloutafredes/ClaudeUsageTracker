@@ -163,3 +163,9 @@ enum MenuBarWindow: String, CaseIterable, Identifiable {
         }
     }
 }
+
+/// A newer version discovered via the GitHub Releases API.
+struct UpdateInfo {
+    let version: String
+    let releaseURL: URL
+}

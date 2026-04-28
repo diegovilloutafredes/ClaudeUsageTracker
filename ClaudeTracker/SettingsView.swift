@@ -23,7 +23,7 @@ struct SettingsView: View {
     // MARK: - Account
 
     private var accountSection: some View {
-        Section("Account") {
+        Section {
             HStack(alignment: .center, spacing: 10) {
                 Circle()
                     .fill(viewModel.isAuthenticated ? Color.green : Color.red)
@@ -73,6 +73,30 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
+
+            HStack {
+                if let update = viewModel.availableUpdate {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundStyle(.green)
+                        .accessibilityHidden(true)
+                    Text("v\(update.version) available")
+                        .font(.subheadline)
+                    Spacer()
+                    Link("Download", destination: update.releaseURL)
+                        .font(.subheadline)
+                } else {
+                    Button(viewModel.isCheckingForUpdates ? "Checking…" : "Check for Updates") {
+                        viewModel.checkForUpdates()
+                    }
+                    .disabled(viewModel.isCheckingForUpdates)
+                }
+            }
+        } header: {
+            Text("Account")
+        } footer: {
+            Text("Unofficial tool — not affiliated with or endorsed by Anthropic. May break if Anthropic changes their web API.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
