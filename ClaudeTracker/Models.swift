@@ -8,6 +8,29 @@ func urgencyColor(_ urgency: Double) -> Color {
     return Color(hue: 0.33 * (1 - t), saturation: 0.85, brightness: 0.9)
 }
 
+/// Returns true when `remote` is a higher semantic version than `current`.
+/// Uses `.numeric` comparison so "1.10.0" > "1.9.0".
+func isNewerVersion(_ remote: String, than current: String) -> Bool {
+    remote.compare(current, options: .numeric) == .orderedDescending
+}
+
+/// Computes consumption rate and projected time-to-full from a utilization history.
+///
+/// Requires at least 30 seconds of elapsed history between the first and last entry.
+/// Returns `nil` when the rate is negligible (≤ 0.1 %/hr) or data is insufficient.
+func computePace(history: [(Date, Double)]) -> (rate: Double, projectedHours: Double?)? {
+    guard history.count >= 2 else { return nil }
+    let oldest = history.first!
+    let newest = history.last!
+    let elapsed = newest.0.timeIntervalSince(oldest.0) / 3600.0
+    guard elapsed >= (30.0 / 3600.0) else { return nil }
+    let rate = (newest.1 - oldest.1) / elapsed
+    guard rate > 0.1 else { return nil }
+    let remaining = 100.0 - newest.1
+    let projectedHours: Double? = remaining > 0 ? remaining / rate : nil
+    return (rate, projectedHours)
+}
+
 /// Response payload from the `/api/organizations/{id}/usage` endpoint.
 struct UsageResponse: Codable {
     let fiveHour: UsageWindow?

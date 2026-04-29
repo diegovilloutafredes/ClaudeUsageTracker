@@ -608,16 +608,8 @@ final class UsageViewModel: ObservableObject {
     ///
     /// - Parameter key: The window key — `"five_hour"` or `"seven_day"`.
     func pace(for key: String) -> (rate: Double, projectedHours: Double?)? {
-        guard let history = utilizationHistory[key], history.count >= 2 else { return nil }
-        let oldest = history.first!
-        let newest = history.last!
-        let elapsed = newest.0.timeIntervalSince(oldest.0) / 3600.0
-        guard elapsed >= (30.0 / 3600.0) else { return nil }
-        let rate = (newest.1 - oldest.1) / elapsed
-        guard rate > 0.1 else { return nil }
-        let remaining = 100.0 - newest.1
-        let projectedHours: Double? = remaining > 0 ? remaining / rate : nil
-        return (rate, projectedHours)
+        guard let history = utilizationHistory[key] else { return nil }
+        return computePace(history: history)
     }
 
     private func appendDataPoint(_ response: UsageResponse) {
@@ -662,7 +654,7 @@ final class UsageViewModel: ObservableObject {
                   let releaseUrl = URL(string: htmlUrl) else { return }
             let remote  = tag.trimmingCharacters(in: .init(charactersIn: "v"))
             let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
-            if remote.compare(current, options: .numeric) == .orderedDescending {
+            if isNewerVersion(remote, than: current) {
                 let assets = json["assets"] as? [[String: Any]]
                 let zipAsset = assets?.first { ($0["name"] as? String)?.hasSuffix(".zip") == true }
                 let downloadURL = (zipAsset?["browser_download_url"] as? String).flatMap(URL.init)

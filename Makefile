@@ -21,7 +21,7 @@ APPLE_TEAM_ID  ?=
 # CI override: make build SIGNING_FLAGS="CODE_SIGNING_ALLOWED=NO"
 SIGNING_FLAGS ?= CODE_SIGN_IDENTITY="-"
 
-.PHONY: release build run clean tag dmg zip sign notarize staple
+.PHONY: release build test run clean tag dmg zip sign notarize staple
 
 # ── Full release pipeline ─────────────────────────────────────────────────────
 
@@ -29,6 +29,17 @@ release: build sign notarize staple dmg zip
 	@echo ""
 	@echo "  -> $(DMG)"
 	@echo "  -> $(ZIP)"
+
+# ── Test ─────────────────────────────────────────────────────────────────────
+
+test:
+	@echo "==> Running tests..."
+	xcodebuild test \
+	           -project $(PROJECT) \
+	           -scheme ClaudeTrackerTests \
+	           -destination 'platform=macOS' \
+	           SWIFT_STRICT_CONCURRENCY=minimal \
+	           $(SIGNING_FLAGS)
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 
