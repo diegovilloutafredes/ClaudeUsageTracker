@@ -84,6 +84,8 @@ Do NOT attempt `HStack { Image; Text }`, `Label(text, systemImage:)`, `Text("\(I
 
 **SourceKit false positives:** Persistent "Cannot find type X in scope" errors appear in SourceKit for all cross-file references. These are IDE-level issues and do not reflect real build errors. All builds succeed normally.
 
+**Localization:** The app is localized for English (default) and Spanish via `ClaudeTracker/Localizable.xcstrings` (Xcode 15+ String Catalog format). English is the development language; Spanish translations are in the same file under `"es"` locale keys. All user-visible strings use `Text("literal")` (auto-`LocalizedStringKey`), `String(localized:)`, or `String(format: String(localized:), ...)` for format strings. `allWindows` returns `[(MenuBarWindow, UsageWindow)]` — use `.rawValue` for API key lookups and `.label` for display; do not compare localized label strings. To test Spanish: `defaults write com.claudetracker.app AppleLanguages '(es)' && make run`; to reset: `defaults delete com.claudetracker.app AppleLanguages`.
+
 ## API Notes
 
 The app uses **unofficial, undocumented** claude.ai endpoints via WKWebView `fetch()`:
