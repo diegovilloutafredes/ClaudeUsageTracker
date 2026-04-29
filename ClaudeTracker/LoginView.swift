@@ -50,7 +50,7 @@ final class LoginWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Sign in to Claude"
+        window.title = String(localized: "Sign in to Claude")
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: loginView)
         window.center()
@@ -72,7 +72,7 @@ final class LoginWindowController {
             backing: .buffered,
             defer: false
         )
-        popup.title = "Sign in"
+        popup.title = String(localized: "Sign in")
         popup.isReleasedWhenClosed = false
         popup.contentView = webView
         if let parent = window {

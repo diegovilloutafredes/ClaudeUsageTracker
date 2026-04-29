@@ -292,12 +292,12 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate, WKUIDelegate {
 
         var errorDescription: String? {
             switch self {
-            case .noOrganization: return "No organization found"
-            case .invalidResponse: return "Invalid API response"
-            case .unauthorized: return "Session expired — please sign in again"
-            case .rateLimited: return "Rate limited — retrying shortly"
-            case .httpError(let s): return "Server error: \(s)"
-            case .networkError(let s): return "Network error: \(s)"
+            case .noOrganization: return String(localized: "No organization found")
+            case .invalidResponse: return String(localized: "Invalid API response")
+            case .unauthorized: return String(localized: "Session expired — please sign in again")
+            case .rateLimited: return String(localized: "Rate limited — retrying shortly")
+            case .httpError(let s): return String(localized: "Server error: \(s)")
+            case .networkError(let s): return String(localized: "Network error: \(s)")
             }
         }
     }

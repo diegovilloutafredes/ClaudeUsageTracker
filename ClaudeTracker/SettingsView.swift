@@ -309,7 +309,7 @@ private struct SettingsWindowPositioner: NSViewRepresentable {
         DispatchQueue.main.async {
             guard let window = view.window, let screen = NSScreen.main else { return }
             let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-            window.title = "Settings · v\(version)"
+            window.title = String(format: String(localized: "Settings · v%@"), version)
             let sf  = screen.frame
             let mbh = sf.maxY - screen.visibleFrame.maxY
             let x   = (sf.midX - targetWidth / 2).rounded()

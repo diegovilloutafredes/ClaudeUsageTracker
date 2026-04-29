@@ -15,6 +15,7 @@
 		AA0000000000000000000006 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000006 /* SettingsView.swift */; };
 		AA0000000000000000000007 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000010 /* LoginView.swift */; };
 		AA0000000000000000000008 /* ToastWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000011 /* ToastWindowController.swift */; };
+		AA0000000000000000000009 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000012 /* Localizable.xcstrings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,7 +30,19 @@
 		BB0000000000000000000009 /* ClaudeTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClaudeTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB0000000000000000000010 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		BB0000000000000000000011 /* ToastWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastWindowController.swift; sourceTree = "<group>"; };
+		BB0000000000000000000012 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Localizable.xcstrings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXResourcesBuildPhase section */
+		CC0000000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0000000000000000000009 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		CC0000000000000000000001 /* Frameworks */ = {
@@ -61,6 +74,7 @@
 				BB0000000000000000000006 /* SettingsView.swift */,
 				BB0000000000000000000010 /* LoginView.swift */,
 				BB0000000000000000000011 /* ToastWindowController.swift */,
+				BB0000000000000000000012 /* Localizable.xcstrings */,
 				BB0000000000000000000007 /* Info.plist */,
 				BB0000000000000000000008 /* ClaudeTracker.entitlements */,
 			);
@@ -84,6 +98,7 @@
 			buildPhases = (
 				GG0000000000000000000001 /* Sources */,
 				CC0000000000000000000001 /* Frameworks */,
+				CC0000000000000000000002 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -111,6 +126,7 @@
 			knownRegions = (
 				en,
 				Base,
+				es,
 			);
 			mainGroup = DD0000000000000000000001;
 			productRefGroup = DD0000000000000000000003 /* Products */;

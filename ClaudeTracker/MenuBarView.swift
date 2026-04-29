@@ -64,7 +64,7 @@ struct MenuBarView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func tabButton(_ label: String, tag: Int) -> some View {
+    private func tabButton(_ label: LocalizedStringKey, tag: Int) -> some View {
         Text(label)
             .font(sf(11, selectedTab == tag ? .semibold : .regular))
             .frame(maxWidth: .infinity)
@@ -132,8 +132,8 @@ struct MenuBarView: View {
         }
 
         VStack(alignment: .leading, spacing: 17 * s) {
-            ForEach(usage.allWindows, id: \.0) { title, window in
-                windowRow(title: title, window: window)
+            ForEach(usage.allWindows, id: \.0) { windowKey, window in
+                windowRow(windowKey: windowKey, window: window)
             }
         }
 
@@ -174,11 +174,10 @@ struct MenuBarView: View {
         }
     }
 
-    private func windowRow(title: String, window: UsageWindow) -> some View {
-        let key = title == "5-Hour Window" ? "five_hour" : "seven_day"
-        let pace = viewModel.showPace ? viewModel.pace(for: key) : nil
+    private func windowRow(windowKey: MenuBarWindow, window: UsageWindow) -> some View {
+        let pace = viewModel.showPace ? viewModel.pace(for: windowKey.rawValue) : nil
         return UsageWindowView(
-            title: title,
+            title: windowKey.label,
             window: window,
             paceRate: pace?.rate,
             projectedHours: pace?.projectedHours,
@@ -244,7 +243,7 @@ struct MenuBarView: View {
         xDomain: ClosedRange<Date>
     ) -> some View {
         VStack(alignment: .leading, spacing: 8 * s) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(sf(11, .semibold))
             miniChart(
                 label: "Utilization",
@@ -287,7 +286,7 @@ struct MenuBarView: View {
 
         VStack(alignment: .leading, spacing: 3 * s) {
             HStack {
-                Text(label)
+                Text(LocalizedStringKey(label))
                     .font(sf(10))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -434,9 +433,41 @@ struct UsageWindowView: View {
 
             if let rate = paceRate {
                 paceLine(rate: rate)
+                paceOutlookLine()
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private func paceOutlookLine() -> some View {
+        if let proj = projectedHours, proj > 0,
+           let resetDate = window.resetsAtDate {
+            let hrs = resetDate.timeIntervalSinceNow / 3600
+            if hrs > 0 {
+                let (icon, text, color) = paceOutlook(proj: proj, hoursToReset: hrs)
+                HStack(spacing: 4) {
+                    Image(systemName: icon).accessibilityHidden(true)
+                    Text(text)
+                }
+                .font(sf(11))
+                .foregroundStyle(color)
+            }
+        }
+    }
+
+    private func paceOutlook(proj: Double, hoursToReset: Double) -> (String, LocalizedStringKey, Color) {
+        if proj >= hoursToReset {
+            return ("checkmark.circle", "On track — resets before limit", Color.secondary)
+        } else if proj >= hoursToReset * 0.8 {
+            return ("exclamationmark.circle", "Getting close — may hit limit", urgencyColor(0.7))
+        } else {
+            let early = hoursToReset - proj
+            let timeStr = early < 1
+                ? "~\(max(1, Int(early * 60)))m"
+                : "~\(Int(early.rounded()))h"
+            return ("exclamationmark.triangle.fill", "Will hit limit \(timeStr) before reset", urgencyColor(1.0))
+        }
     }
 
     private func paceLine(rate: Double) -> some View {
@@ -451,10 +482,12 @@ struct UsageWindowView: View {
         let rateText = String(format: "+%.1f%%/hr", rate)
         let projText: String? = projectedHours.flatMap { h in
             guard h < 24 else { return nil }
-            if h < 1 { return "· full in \(max(1, Int(h * 60)))m" }
+            if h < 1 { return String(format: String(localized: "· full in %dm"), max(1, Int(h * 60))) }
             let hrs = Int(h)
             let mins = Int((h - Double(hrs)) * 60)
-            return mins > 0 ? "· full in \(hrs)h \(mins)m" : "· full in \(hrs)h"
+            return mins > 0
+                ? String(format: String(localized: "· full in %dh %dm"), hrs, mins)
+                : String(format: String(localized: "· full in %dh"), hrs)
         }
 
         return HStack(spacing: 4) {

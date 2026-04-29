@@ -467,7 +467,7 @@ final class UsageViewModel: ObservableObject {
            let newDate = newWindow.resetsAtDate,
            newDate.timeIntervalSince(oldDate) > 3600,
            newWindow.utilization < 5 {
-            resets.append("5-Hour Window")
+            resets.append(String(localized: "5-Hour Window"))
         }
 
         if notify7Day,
@@ -476,7 +476,7 @@ final class UsageViewModel: ObservableObject {
            let newDate = newWindow.resetsAtDate,
            newDate.timeIntervalSince(oldDate) > 3600,
            newWindow.utilization < 5 {
-            resets.append("7-Day Window")
+            resets.append(String(localized: "7-Day Window"))
         }
 
         recordResetsAt(new)
@@ -494,8 +494,8 @@ final class UsageViewModel: ObservableObject {
     // MARK: - Notification Dispatch
 
     private func dispatchNotifications(windows: [String]) {
-        let title = "Claude Usage Reset"
-        let body  = "\(windows.joined(separator: " & ")) reset — you're good to go!"
+        let title = String(localized: "Claude Usage Reset")
+        let body  = String(format: String(localized: "%@ reset — you're good to go!"), windows.joined(separator: " & "))
 
         if notifyToast  { ToastWindowController.shared.show(title: title, message: body, duration: toastDuration, permanent: toastPermanent) }
         if notifySound  { NSSound(named: NSSound.Name("Glass"))?.play() }
@@ -504,7 +504,7 @@ final class UsageViewModel: ObservableObject {
 
     /// Triggers a test notification through all currently enabled channels using a simulated reset.
     func sendTestNotification() {
-        dispatchNotifications(windows: ["5-Hour Window"])
+        dispatchNotifications(windows: [String(localized: "5-Hour Window")])
     }
 
     private func sendBannerNotification(title: String, body: String) {
@@ -567,8 +567,8 @@ final class UsageViewModel: ObservableObject {
         }
 
         let candidates: [(key: String, name: String, watched: Bool)] = [
-            ("five_hour", "5-Hour Window", notify5Hour),
-            ("seven_day",  "7-Day Window",  notify7Day),
+            ("five_hour", String(localized: "5-Hour Window"), notify5Hour),
+            ("seven_day",  String(localized: "7-Day Window"),  notify7Day),
         ]
 
         for (key, name, watched) in candidates {
@@ -578,8 +578,8 @@ final class UsageViewModel: ObservableObject {
             if isConcerning, !paceWarned.contains(key), let pd = paceData, let projHours = pd.projectedHours {
                 paceWarned.insert(key)
                 let minsLeft = max(1, Int(projHours * 60))
-                let title = "Approaching usage limit"
-                let body  = "\(name) fills in \(minsLeft) min at \(String(format: "%.1f", pd.rate))%/hr"
+                let title = String(localized: "Approaching usage limit")
+                let body  = String(format: String(localized: "%@ fills in %d min at %.1f%%/hr"), name, minsLeft, pd.rate)
                 if notifyToast  { paceToastIDs[key] = ToastWindowController.shared.show(title: title, message: body, duration: paceToastDuration, permanent: paceToastPermanent) }
                 if notifySound  { NSSound(named: NSSound.Name("Glass"))?.play() }
                 if notifyBanner { sendBannerNotification(title: title, body: body) }
@@ -668,7 +668,7 @@ final class UsageViewModel: ObservableObject {
         let backoff = min(Double(consecutiveErrors) * 10, 60)
         let interval = refreshInterval + backoff
         let base = (error ?? "Error").components(separatedBy: " (retry in ").first ?? "Error"
-        error = "\(base) (retry in \(Int(interval))s)"
+        error = String(format: String(localized: "%@ (retry in %ds)"), base, Int(interval))
         timer = Timer.publish(every: interval, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in self?.fetchUsage() }

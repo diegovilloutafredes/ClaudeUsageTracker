@@ -28,10 +28,10 @@ struct UsageResponse: Codable {
     ///
     /// The Opus and Sonnet sub-windows are omitted — they are informational breakdowns
     /// of the 7-day total and do not represent independent rate limits the user can act on.
-    var allWindows: [(String, UsageWindow)] {
-        var result: [(String, UsageWindow)] = []
-        if let w = fiveHour { result.append(("5-Hour Window", w)) }
-        if let w = sevenDay { result.append(("7-Day Window", w)) }
+    var allWindows: [(MenuBarWindow, UsageWindow)] {
+        var result: [(MenuBarWindow, UsageWindow)] = []
+        if let w = fiveHour { result.append((.fiveHour, w)) }
+        if let w = sevenDay { result.append((.sevenDay, w)) }
         return result
     }
 }
@@ -179,8 +179,8 @@ enum MenuBarWindow: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .fiveHour: return "5-Hour Window"
-        case .sevenDay: return "7-Day Window"
+        case .fiveHour: return String(localized: "5-Hour Window")
+        case .sevenDay: return String(localized: "7-Day Window")
         }
     }
 }

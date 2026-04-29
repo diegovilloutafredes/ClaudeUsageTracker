@@ -1,0 +1,820 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ (retry in %ds)" : {
+      "comment" : "Error message with retry countdown appended",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (reintentando en %ds)"
+          }
+        }
+      }
+    },
+    "%@ fills in %d min at %.1f%%/hr" : {
+      "comment" : "Pace alert notification body: window name, minutes, rate",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ se llenará en %d min a %.1f%%/h"
+          }
+        }
+      }
+    },
+    "%@ reset — you're good to go!" : {
+      "comment" : "Usage reset notification body: window name(s)",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¡%@ se reinició — ya puedes continuar!"
+          }
+        }
+      }
+    },
+    "· full in %dh" : {
+      "comment" : "Pace line suffix: hours until window full",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· lleno en %dh"
+          }
+        }
+      }
+    },
+    "· full in %dh %dm" : {
+      "comment" : "Pace line suffix: hours and minutes until window full",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· lleno en %dh %dm"
+          }
+        }
+      }
+    },
+    "· full in %dm" : {
+      "comment" : "Pace line suffix: minutes until window full",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· lleno en %dm"
+          }
+        }
+      }
+    },
+    "5-Hour" : {
+      "comment" : "Short label for 5-hour window in charts section header",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 horas"
+          }
+        }
+      }
+    },
+    "5-Hour Window" : {
+      "comment" : "5-hour rate-limit window name",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ventana de 5 horas"
+          }
+        }
+      }
+    },
+    "5-Hour window resets" : {
+      "comment" : "Toggle label: notify when 5-hour window resets",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reinicio de ventana de 5 horas"
+          }
+        }
+      }
+    },
+    "7-Day" : {
+      "comment" : "Short label for 7-day window in charts section header",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7 días"
+          }
+        }
+      }
+    },
+    "7-Day Window" : {
+      "comment" : "7-day rate-limit window name",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ventana de 7 días"
+          }
+        }
+      }
+    },
+    "7-Day window resets" : {
+      "comment" : "Toggle label: notify when 7-day window resets",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reinicio de ventana de 7 días"
+          }
+        }
+      }
+    },
+    "Account" : {
+      "comment" : "Settings section header",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuenta"
+          }
+        }
+      }
+    },
+    "Alert when a watched window is projected to fill before it resets, based on your current consumption rate." : {
+      "comment" : "Pace Alerts section footer in settings",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alertar cuando se proyecta que una ventana vigilada se llenará antes de reiniciarse, según tu tasa de consumo actual."
+          }
+        }
+      }
+    },
+    "Approaching usage limit" : {
+      "comment" : "Pace alert notification title",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acercándose al límite de uso"
+          }
+        }
+      }
+    },
+    "Charts" : {
+      "comment" : "Charts tab label",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gráficos"
+          }
+        }
+      }
+    },
+    "Check for Updates" : {
+      "comment" : "Button to check for app updates",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar actualizaciones"
+          }
+        }
+      }
+    },
+    "Checking…" : {
+      "comment" : "Button label while checking for updates",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verificando…"
+          }
+        }
+      }
+    },
+    "Claude Tracker" : {
+      "comment" : "App name shown in popover header",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Tracker"
+          }
+        }
+      }
+    },
+    "Claude Usage Reset" : {
+      "comment" : "Usage reset notification title",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reinicio de uso de Claude"
+          }
+        }
+      }
+    },
+    "Collecting…" : {
+      "comment" : "Chart placeholder shown while data is being collected",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recopilando…"
+          }
+        }
+      }
+    },
+    "Display" : {
+      "comment" : "Settings section for display options",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pantalla"
+          }
+        }
+      }
+    },
+    "Download" : {
+      "comment" : "Link to download available update",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargar"
+          }
+        }
+      }
+    },
+    "Duration" : {
+      "comment" : "Toast notification duration slider label in reset notifications section",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duración"
+          }
+        }
+      }
+    },
+    "Extra Usage" : {
+      "comment" : "Extra pay-as-you-go usage section in popover",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uso Extra"
+          }
+        }
+      }
+    },
+    "Fires all enabled channels with a simulated reset" : {
+      "comment" : "Description text next to test notification button",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activa todos los canales habilitados con un reinicio simulado"
+          }
+        }
+      }
+    },
+    "Getting close — may hit limit" : {
+      "comment" : "Pace outlook: warning that limit may be reached",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acercándose — puede alcanzar el límite"
+          }
+        }
+      }
+    },
+    "Invalid API response" : {
+      "comment" : "API error: response could not be decoded",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Respuesta de API inválida"
+          }
+        }
+      }
+    },
+    "Loading…" : {
+      "comment" : "Loading indicator label in popover",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cargando…"
+          }
+        }
+      }
+    },
+    "Menu bar window" : {
+      "comment" : "Settings picker: which window the menu bar label tracks",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ventana en la barra de menús"
+          }
+        }
+      }
+    },
+    "Network error: %@" : {
+      "comment" : "API error: network failure with detail message",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error de red: %@"
+          }
+        }
+      }
+    },
+    "No data for this period" : {
+      "comment" : "Chart empty state when no history data exists for selected range",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin datos para este período"
+          }
+        }
+      }
+    },
+    "No organization found" : {
+      "comment" : "API error: no organization returned from API",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se encontró ninguna organización"
+          }
+        }
+      }
+    },
+    "Not signed in" : {
+      "comment" : "Empty state label and account status when not authenticated",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No has iniciado sesión"
+          }
+        }
+      }
+    },
+    "Notify when approaching limit" : {
+      "comment" : "Toggle: enable pace alert notifications",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notificar al acercarse al límite"
+          }
+        }
+      }
+    },
+    "On track — resets before limit" : {
+      "comment" : "Pace outlook: consumption rate is within limits",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En camino — se reinicia antes del límite"
+          }
+        }
+      }
+    },
+    "Opens Claude in a browser window." : {
+      "comment" : "Subtitle below sign-in button in empty state",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre Claude en una ventana del navegador."
+          }
+        }
+      }
+    },
+    "Pace" : {
+      "comment" : "Chart sub-label for pace (%/hr) data series",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ritmo"
+          }
+        }
+      }
+    },
+    "Pace Alerts" : {
+      "comment" : "Settings section header for pace alert controls",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alertas de ritmo"
+          }
+        }
+      }
+    },
+    "pk %@  avg %@" : {
+      "comment" : "Chart stats row: peak value and average value",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pico %@  prom %@"
+          }
+        }
+      }
+    },
+    "Poll every" : {
+      "comment" : "Label for refresh interval slider in settings",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consultar cada"
+          }
+        }
+      }
+    },
+    "Popup size" : {
+      "comment" : "Settings slider label for popover scale",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tamaño del menú"
+          }
+        }
+      }
+    },
+    "Quit" : {
+      "comment" : "Quit button in popover footer",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salir"
+          }
+        }
+      }
+    },
+    "Rate limited — retrying shortly" : {
+      "comment" : "API error: rate limit hit",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Límite de tasa alcanzado — reintentando pronto"
+          }
+        }
+      }
+    },
+    "Rate window" : {
+      "comment" : "Label for pace history window picker (5/10/15/30 min)",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ventana de tasa"
+          }
+        }
+      }
+    },
+    "Refresh Interval" : {
+      "comment" : "Settings section header for refresh interval",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalo de actualización"
+          }
+        }
+      }
+    },
+    "Resets %@" : {
+      "comment" : "Reset countdown: Resets <relative time>",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reinicia en %@"
+          }
+        }
+      }
+    },
+    "Server error: %@" : {
+      "comment" : "API error: unexpected HTTP status",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error del servidor: %@"
+          }
+        }
+      }
+    },
+    "Session expired — please sign in again" : {
+      "comment" : "API error: 401/403 unauthorized",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesión expirada — inicia sesión nuevamente"
+          }
+        }
+      }
+    },
+    "Settings" : {
+      "comment" : "Settings link in popover footer",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes"
+          }
+        }
+      }
+    },
+    "Settings · v%@" : {
+      "comment" : "Settings window title with app version number",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes · v%@"
+          }
+        }
+      }
+    },
+    "Show charts tab" : {
+      "comment" : "Toggle to show or hide the Charts tab in popover",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar pestaña de gráficos"
+          }
+        }
+      }
+    },
+    "Show pace indicator" : {
+      "comment" : "Toggle to show or hide pace line in usage windows",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar indicador de ritmo"
+          }
+        }
+      }
+    },
+    "Sign in" : {
+      "comment" : "OAuth popup window title and sign-in button label",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar sesión"
+          }
+        }
+      }
+    },
+    "Sign in again" : {
+      "comment" : "Button to retry authentication after an error",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar sesión nuevamente"
+          }
+        }
+      }
+    },
+    "Sign in to Claude" : {
+      "comment" : "Login window title and sign-in button label in popover",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar sesión en Claude"
+          }
+        }
+      }
+    },
+    "Sign in to your Claude account. The session will be captured automatically." : {
+      "comment" : "Info banner shown in the login window",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inicia sesión en tu cuenta de Claude. La sesión se capturará automáticamente."
+          }
+        }
+      }
+    },
+    "Sign out" : {
+      "comment" : "Button to sign out of the current session",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cerrar sesión"
+          }
+        }
+      }
+    },
+    "Signed in" : {
+      "comment" : "Account status label when authenticated but account info unavailable",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesión iniciada"
+          }
+        }
+      }
+    },
+    "Signed in! Closing…" : {
+      "comment" : "Success banner in login window after session cookie detected",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¡Sesión iniciada! Cerrando…"
+          }
+        }
+      }
+    },
+    "Sound" : {
+      "comment" : "Toggle for notification sound",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonido"
+          }
+        }
+      }
+    },
+    "Stay until dismissed" : {
+      "comment" : "Toggle for permanent toast (stays until user closes it)",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar hasta cerrar"
+          }
+        }
+      }
+    },
+    "System notification banner" : {
+      "comment" : "Toggle for macOS system notification banner",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Banner de notificación del sistema"
+          }
+        }
+      }
+    },
+    "Test" : {
+      "comment" : "Button to send a test notification",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probar"
+          }
+        }
+      }
+    },
+    "Toast duration" : {
+      "comment" : "Slider label for pace alert toast duration",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duración del aviso"
+          }
+        }
+      }
+    },
+    "Toast near menu bar" : {
+      "comment" : "Toggle for floating toast notification near menu bar",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aviso flotante en la barra de menús"
+          }
+        }
+      }
+    },
+    "Unofficial tool — not affiliated with or endorsed by Anthropic. May break if Anthropic changes their web API." : {
+      "comment" : "Disclaimer footer in settings account section",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herramienta no oficial — no está afiliada ni respaldada por Anthropic. Puede dejar de funcionar si Anthropic cambia su API web."
+          }
+        }
+      }
+    },
+    "Updated %@ ago" : {
+      "comment" : "Last-updated timestamp in popover footer: Updated <relative time> ago",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizado hace %@"
+          }
+        }
+      }
+    },
+    "Usage" : {
+      "comment" : "Usage tab label",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uso"
+          }
+        }
+      }
+    },
+    "Utilization" : {
+      "comment" : "Chart sub-label for utilization (%) data series",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilización"
+          }
+        }
+      }
+    },
+    "v%@ available" : {
+      "comment" : "Update available label showing version number",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@ disponible"
+          }
+        }
+      }
+    },
+    "Warn with less than" : {
+      "comment" : "Pace alert threshold slider label",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Advertir con menos de"
+          }
+        }
+      }
+    },
+    "Will hit limit %@ before reset" : {
+      "comment" : "Pace outlook: will reach limit before window resets, with time remaining",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alcanzará el límite %@ antes del reinicio"
+          }
+        }
+      }
+    },
+    "Window Reset Notifications" : {
+      "comment" : "Settings section header for reset notification controls",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notificaciones de reinicio de ventana"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
