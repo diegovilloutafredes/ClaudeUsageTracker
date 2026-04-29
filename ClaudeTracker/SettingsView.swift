@@ -75,13 +75,13 @@ struct SettingsView: View {
             }
 
             updateRow
-        } header: {
-            Text("Account")
-        } footer: {
+
             Text("Unofficial tool — not affiliated with or endorsed by Anthropic. May break if Anthropic changes their web API.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        } header: {
+            Text("Account")
         }
     }
 
@@ -230,13 +230,13 @@ struct SettingsView: View {
                     .padding(.leading, 20)
                 }
             }
-        } header: {
-            Text("Pace Alerts")
-        } footer: {
+
             Text("Alert when a watched window is projected to fill before it resets, based on your current consumption rate.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        } header: {
+            Text("Pace Alerts")
         }
     }
 
