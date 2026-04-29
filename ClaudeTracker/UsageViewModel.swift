@@ -4,6 +4,13 @@ import Combine
 import WebKit
 import UserNotifications
 
+enum UpdateDownloadState {
+    case idle
+    case downloading
+    case installing
+    case failed(String)
+}
+
 /// Separate `NSObject` subclass required because `UNUserNotificationCenterDelegate` expects an
 /// `NSObject`, and assigning `self` (a `@MainActor` class) as the delegate from a non-isolated
 /// context produces a Swift concurrency compiler error.
@@ -24,6 +31,7 @@ final class UsageViewModel: ObservableObject {
     @Published var refreshInterval: Double = 5.0
     @Published var availableUpdate: UpdateInfo? = nil
     @Published var isCheckingForUpdates = false
+    @Published var updateDownloadState: UpdateDownloadState = .idle
     /// Which window's utilization the menu bar label tracks.
     @Published var menuBarWindow: MenuBarWindow = .fiveHour
     @Published var usage: UsageResponse?
@@ -639,6 +647,7 @@ final class UsageViewModel: ObservableObject {
     /// Safe to call multiple times; debounced by `isCheckingForUpdates`.
     func checkForUpdates() {
         guard !isCheckingForUpdates else { return }
+        if case .failed = updateDownloadState { updateDownloadState = .idle }
         isCheckingForUpdates = true
         Task {
             defer { isCheckingForUpdates = false }
@@ -654,7 +663,104 @@ final class UsageViewModel: ObservableObject {
             let remote  = tag.trimmingCharacters(in: .init(charactersIn: "v"))
             let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
             if remote.compare(current, options: .numeric) == .orderedDescending {
-                availableUpdate = UpdateInfo(version: remote, releaseURL: releaseUrl)
+                let assets = json["assets"] as? [[String: Any]]
+                let zipAsset = assets?.first { ($0["name"] as? String)?.hasSuffix(".zip") == true }
+                let downloadURL = (zipAsset?["browser_download_url"] as? String).flatMap(URL.init)
+                availableUpdate = UpdateInfo(version: remote, releaseURL: releaseUrl, downloadURL: downloadURL)
+            }
+        }
+    }
+
+    func downloadAndInstall() {
+        guard let update = availableUpdate, let downloadURL = update.downloadURL else { return }
+        guard case .idle = updateDownloadState else { return }
+        updateDownloadState = .downloading
+
+        let tmpBase = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("ClaudeTrackerUpdate")
+
+        Task {
+            do {
+                try? FileManager.default.removeItem(at: tmpBase)
+                try FileManager.default.createDirectory(at: tmpBase, withIntermediateDirectories: true)
+
+                // Download ZIP
+                let (tempURL, _) = try await URLSession.shared.download(from: downloadURL)
+                let zipURL = tmpBase.appendingPathComponent("update.zip")
+                try FileManager.default.moveItem(at: tempURL, to: zipURL)
+
+                // Extract on background thread (waitUntilExit blocks)
+                let extractDir = tmpBase.appendingPathComponent("extracted")
+                let appURL: URL = try await withCheckedThrowingContinuation { cont in
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        do {
+                            try FileManager.default.createDirectory(at: extractDir, withIntermediateDirectories: true)
+                            let unzip = Process()
+                            unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+                            unzip.arguments = ["-o", zipURL.path, "-d", extractDir.path]
+                            try unzip.run()
+                            unzip.waitUntilExit()
+                            guard unzip.terminationStatus == 0 else {
+                                cont.resume(throwing: UpdateError.extractionFailed); return
+                            }
+                            let items = (try? FileManager.default.contentsOfDirectory(
+                                at: extractDir, includingPropertiesForKeys: nil)) ?? []
+                            if let app = items.first(where: { $0.pathExtension == "app" }) {
+                                cont.resume(returning: app)
+                            } else {
+                                cont.resume(throwing: UpdateError.appNotFound)
+                            }
+                        } catch {
+                            cont.resume(throwing: error)
+                        }
+                    }
+                }
+
+                updateDownloadState = .installing
+
+                // Try direct install (works when sandbox is not enforced)
+                let dest = URL(fileURLWithPath: "/Applications/ClaudeTracker.app")
+                let directOK: Bool = await withCheckedContinuation { cont in
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        try? FileManager.default.removeItem(at: dest)
+                        cont.resume(returning: (try? FileManager.default.copyItem(at: appURL, to: dest)) != nil)
+                    }
+                }
+
+                if directOK {
+                    // Detached relaunch: wait for this process to exit, then open new version
+                    let script = "#!/bin/bash\nsleep 1.5\nopen /Applications/ClaudeTracker.app\n"
+                    let scriptURL = tmpBase.appendingPathComponent("relaunch.sh")
+                    try script.write(to: scriptURL, atomically: true, encoding: .utf8)
+                    let p = Process()
+                    p.executableURL = URL(fileURLWithPath: "/bin/bash")
+                    p.arguments = [scriptURL.path]
+                    try p.run()
+                    try await Task.sleep(for: .milliseconds(300))
+                    NSApp.terminate(nil)
+                } else {
+                    // Sandbox blocked direct copy — open install.command in Terminal
+                    let commandURL = extractDir.appendingPathComponent("install.command")
+                    guard FileManager.default.fileExists(atPath: commandURL.path) else {
+                        throw UpdateError.installationFailed
+                    }
+                    NSWorkspace.shared.open(commandURL)
+                    try await Task.sleep(for: .seconds(2))
+                    NSApp.terminate(nil)
+                }
+            } catch {
+                updateDownloadState = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    private enum UpdateError: LocalizedError {
+        case extractionFailed, appNotFound, installationFailed
+        var errorDescription: String? {
+            switch self {
+            case .extractionFailed:   return String(localized: "Failed to extract update")
+            case .appNotFound:        return String(localized: "Update package is invalid")
+            case .installationFailed: return String(localized: "Installation failed")
             }
         }
     }

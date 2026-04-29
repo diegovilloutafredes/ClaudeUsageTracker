@@ -189,4 +189,6 @@ enum MenuBarWindow: String, CaseIterable, Identifiable {
 struct UpdateInfo {
     let version: String
     let releaseURL: URL
+    /// Direct ZIP download URL from the GitHub release assets, if present.
+    let downloadURL: URL?
 }

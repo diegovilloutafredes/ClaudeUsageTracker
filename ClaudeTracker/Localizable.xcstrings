@@ -287,6 +287,17 @@
         }
       }
     },
+    "Downloading…" : {
+      "comment" : "Update download in-progress status label",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargando…"
+          }
+        }
+      }
+    },
     "Duration" : {
       "comment" : "Toast notification duration slider label in reset notifications section",
       "localizations" : {
@@ -305,6 +316,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Uso Extra"
+          }
+        }
+      }
+    },
+    "Failed to extract update" : {
+      "comment" : "Auto-update error: ZIP extraction failed",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error al extraer la actualización"
           }
         }
       }
@@ -338,6 +360,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Acercándose — puede alcanzar el límite"
+          }
+        }
+      }
+    },
+    "Install" : {
+      "comment" : "Button to download and install an available update",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instalar"
+          }
+        }
+      }
+    },
+    "Installation failed" : {
+      "comment" : "Auto-update error: could not install app to /Applications/",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error en la instalación"
+          }
+        }
+      }
+    },
+    "Installing…" : {
+      "comment" : "Update install in-progress status label",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instalando…"
           }
         }
       }
@@ -844,6 +899,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Herramienta no oficial — no está afiliada ni respaldada por Anthropic. Puede dejar de funcionar si Anthropic cambia su API web."
+          }
+        }
+      }
+    },
+    "Update package is invalid" : {
+      "comment" : "Auto-update error: app bundle not found in downloaded ZIP",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El paquete de actualización no es válido"
           }
         }
       }

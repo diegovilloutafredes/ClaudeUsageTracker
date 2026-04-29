@@ -4,6 +4,7 @@ import Charts
 /// The popover content shown when the user clicks the menu bar icon.
 struct MenuBarView: View {
     @ObservedObject var viewModel: UsageViewModel
+    @Environment(\.openSettings) private var openSettings
 
     @AppStorage("selectedTab") private var selectedTab = 0
     private let baseWidth: CGFloat = 312
@@ -360,7 +361,9 @@ struct MenuBarView: View {
                     .controlSize(.mini)
             }
             Spacer()
-            SettingsLink {
+            Button {
+                openSettings()
+            } label: {
                 Text("Settings")
                     .font(sf(11))
             }

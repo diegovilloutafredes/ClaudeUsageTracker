@@ -74,29 +74,73 @@ struct SettingsView: View {
                     .foregroundStyle(.orange)
             }
 
-            HStack {
-                if let update = viewModel.availableUpdate {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundStyle(.green)
-                        .accessibilityHidden(true)
-                    Text("v\(update.version) available")
-                        .font(.subheadline)
-                    Spacer()
-                    Link("Download", destination: update.releaseURL)
-                        .font(.subheadline)
-                } else {
-                    Button(viewModel.isCheckingForUpdates ? "Checking…" : "Check for Updates") {
-                        viewModel.checkForUpdates()
-                    }
-                    .disabled(viewModel.isCheckingForUpdates)
-                }
-            }
+            updateRow
         } header: {
             Text("Account")
         } footer: {
             Text("Unofficial tool — not affiliated with or endorsed by Anthropic. May break if Anthropic changes their web API.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var updateRow: some View {
+        if let update = viewModel.availableUpdate {
+            updateAvailableContent(update)
+        } else {
+            Button(viewModel.isCheckingForUpdates ? "Checking…" : "Check for Updates") {
+                viewModel.checkForUpdates()
+            }
+            .disabled(viewModel.isCheckingForUpdates)
+        }
+    }
+
+    @ViewBuilder
+    private func updateAvailableContent(_ update: UpdateInfo) -> some View {
+        switch viewModel.updateDownloadState {
+        case .idle:
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .foregroundStyle(.green)
+                    .accessibilityHidden(true)
+                Text("v\(update.version) available")
+                    .font(.subheadline)
+                Spacer()
+                if update.downloadURL != nil {
+                    Button("Install") { viewModel.downloadAndInstall() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                } else {
+                    Link("Download", destination: update.releaseURL)
+                        .font(.subheadline)
+                }
+            }
+        case .downloading:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Downloading…").font(.subheadline).foregroundStyle(.secondary)
+                Spacer()
+            }
+        case .installing:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Installing…").font(.subheadline).foregroundStyle(.secondary)
+                Spacer()
+            }
+        case .failed(let msg):
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                    .accessibilityHidden(true)
+                Text(msg)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                Spacer()
+                Link("Download", destination: update.releaseURL)
+                    .font(.caption)
+            }
         }
     }
 
