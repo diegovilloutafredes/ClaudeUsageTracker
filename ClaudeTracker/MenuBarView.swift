@@ -31,13 +31,11 @@ struct MenuBarView: View {
         .padding(19 * s)
         .frame(width: baseWidth * s)
         .fixedSize(horizontal: false, vertical: true)
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { contentHeight = geo.size.height }
-                    .onChange(of: geo.size.height) { _, h in contentHeight = h }
-            }
-        )
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { newHeight in
+            contentHeight = newHeight
+        }
         .background(PopoverResizer(height: contentHeight))
         .onChange(of: viewModel.showChartsTab) { _, enabled in
             if !enabled { selectedTab = 0 }
@@ -76,16 +74,18 @@ struct MenuBarView: View {
     }
 
     private func tabButton(_ label: LocalizedStringKey, tag: Int) -> some View {
-        Text(label)
-            .font(sf(11, selectedTab == tag ? .semibold : .regular))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4 * s)
-            .background(
-                selectedTab == tag ? Color.primary.opacity(0.1) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 5 * s)
-            )
-            .contentShape(Rectangle())
-            .onTapGesture { selectedTab = tag }
+        Button { selectedTab = tag } label: {
+            Text(label)
+                .font(sf(11, selectedTab == tag ? .semibold : .regular))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4 * s)
+                .background(
+                    selectedTab == tag ? Color.primary.opacity(0.1) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 5 * s)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Content
@@ -228,16 +228,18 @@ struct MenuBarView: View {
     private var timeRangePicker: some View {
         HStack(spacing: 1 * s) {
             ForEach(ChartTimeRange.allCases, id: \.self) { range in
-                Text(range.rawValue)
-                    .font(sf(11, chartTimeRange == range ? .semibold : .regular))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4 * s)
-                    .background(
-                        chartTimeRange == range ? Color.primary.opacity(0.1) : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 5 * s)
-                    )
-                    .contentShape(Rectangle())
-                    .onTapGesture { chartTimeRange = range }
+                Button { chartTimeRange = range } label: {
+                    Text(range.rawValue)
+                        .font(sf(11, chartTimeRange == range ? .semibold : .regular))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4 * s)
+                        .background(
+                            chartTimeRange == range ? Color.primary.opacity(0.1) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 5 * s)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(2 * s)
@@ -258,6 +260,7 @@ struct MenuBarView: View {
                 .font(sf(11, .semibold))
             miniChart(
                 label: "Utilization",
+                isUtilization: true,
                 filtered: history,
                 keyPath: utilKeyPath,
                 domain: 0...100,
@@ -266,6 +269,7 @@ struct MenuBarView: View {
             )
             miniChart(
                 label: "Pace",
+                isUtilization: false,
                 filtered: history,
                 keyPath: paceKeyPath,
                 domain: nil,
@@ -278,6 +282,7 @@ struct MenuBarView: View {
     @ViewBuilder
     private func miniChart(
         label: String,
+        isUtilization: Bool,
         filtered: [UsageDataPoint],
         keyPath: KeyPath<UsageDataPoint, Double?>,
         domain: ClosedRange<Double>?,
@@ -287,7 +292,7 @@ struct MenuBarView: View {
         let values: [Double] = filtered.compactMap { $0[keyPath: keyPath] }
         let peak = values.max() ?? 0
         let avg = values.isEmpty ? 0.0 : values.reduce(0, +) / Double(values.count)
-        let color: Color = label == "Utilization"
+        let color: Color = isUtilization
             ? urgencyColor((values.last ?? 0) / 100.0)
             : Color.blue
         let span = xDomain.upperBound.timeIntervalSince(xDomain.lowerBound)
@@ -436,9 +441,9 @@ private enum ChartTimeRange: String, CaseIterable {
 struct UsageWindowView: View {
     let title: String
     let window: UsageWindow
-    var paceRate: Double? = nil
-    var projectedHours: Double? = nil
-    var scale: CGFloat = 1.0
+    let paceRate: Double?
+    let projectedHours: Double?
+    let scale: CGFloat
 
     private func sf(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
         .system(size: size * scale, weight: weight)
@@ -494,7 +499,7 @@ struct UsageWindowView: View {
     }
 
     private func paceOutlook(proj: Double, hoursToReset: Double) -> (String, LocalizedStringKey, Color) {
-        let seed = abs(Int(hoursToReset * 7))
+        let seed = abs(Int(window.resetsAtDate?.timeIntervalSince1970 ?? 0))
 
         if proj >= hoursToReset {
             let messages: [LocalizedStringKey] = [

@@ -32,14 +32,16 @@ final class ToastWindowController {
     /// - Parameters:
     ///   - title: Bold headline text.
     ///   - message: Supporting detail shown below the title.
+    ///   - icon: SF Symbol name for the leading icon. Defaults to `checkmark.circle.fill`.
+    ///   - iconColor: Color applied to the icon. Defaults to `.green`.
     ///   - duration: Total visible time in seconds before the toast fades out. Ignored when `permanent` is `true`.
     ///   - permanent: When `true`, the toast stays on screen until the user taps the close button.
     @discardableResult
-    func show(title: String, message: String, duration: Double, permanent: Bool) -> UUID {
+    func show(title: String, message: String, icon: String = "checkmark.circle.fill", iconColor: Color = .green, duration: Double, permanent: Bool) -> UUID {
         let id = UUID()
         let panel = makePanel()
 
-        let view = ToastView(title: title, message: message, onDismiss: { [weak self] in
+        let view = ToastView(title: title, message: message, icon: icon, iconColor: iconColor, onDismiss: { [weak self] in
             self?.dismiss(id: id)
         })
         let hosting = NSHostingView(rootView: view)
@@ -131,13 +133,15 @@ final class ToastWindowController {
 private struct ToastView: View {
     let title: String
     let message: String
+    let icon: String
+    let iconColor: Color
     let onDismiss: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
+            Image(systemName: icon)
                 .font(.title2)
-                .foregroundStyle(.green)
+                .foregroundStyle(iconColor)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

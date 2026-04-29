@@ -361,7 +361,7 @@ private struct SettingsWindowPositioner: NSViewRepresentable {
             let x   = (sf.midX - targetWidth / 2).rounded()
             window.setFrame(CGRect(x: x, y: sf.minY, width: targetWidth, height: sf.height - mbh), display: true)
             window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
         }
         return view
     }

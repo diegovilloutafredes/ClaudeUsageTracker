@@ -50,10 +50,12 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate, WKUIDelegate {
         cookieTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
                 let claudeCookies = cookies.filter { $0.domain.contains("claude.ai") || $0.domain.contains("anthropic.com") }
+                #if DEBUG
                 if !claudeCookies.isEmpty {
                     let names = claudeCookies.map(\.name).joined(separator: ", ")
                     print("[ClaudeTracker] Cookies visible during login poll: \(names)")
                 }
+                #endif
                 if let session = cookies.first(where: { $0.name == "sessionKey" && ($0.domain.contains("claude.ai") || $0.domain.contains("anthropic.com")) }) {
                     DispatchQueue.main.async {
                         self?.cookieTimer?.invalidate()

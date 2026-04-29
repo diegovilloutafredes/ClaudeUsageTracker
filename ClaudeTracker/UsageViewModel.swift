@@ -588,7 +588,7 @@ final class UsageViewModel: ObservableObject {
                 let minsLeft = max(1, Int(projHours * 60))
                 let title = String(localized: "Approaching usage limit")
                 let body  = String(format: String(localized: "%@ fills in %d min at %.1f%%/hr"), name, minsLeft, pd.rate)
-                if notifyToast  { paceToastIDs[key] = ToastWindowController.shared.show(title: title, message: body, duration: paceToastDuration, permanent: paceToastPermanent) }
+                if notifyToast  { paceToastIDs[key] = ToastWindowController.shared.show(title: title, message: body, icon: "exclamationmark.triangle.fill", iconColor: .orange, duration: paceToastDuration, permanent: paceToastPermanent) }
                 if notifySound  { NSSound(named: NSSound.Name("Glass"))?.play() }
                 if notifyBanner { sendBannerNotification(title: title, body: body) }
             } else if !isConcerning, paceWarned.contains(key) {
