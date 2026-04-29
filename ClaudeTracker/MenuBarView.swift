@@ -1,9 +1,11 @@
 import SwiftUI
+import Charts
 
 /// The popover content shown when the user clicks the menu bar icon.
 struct MenuBarView: View {
     @ObservedObject var viewModel: UsageViewModel
 
+    @AppStorage("selectedTab") private var selectedTab = 0
     private let baseWidth: CGFloat = 312
     private var s: CGFloat { CGFloat(viewModel.popupScale) }
     private func sf(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
@@ -13,12 +15,22 @@ struct MenuBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 17 * s) {
             header
-            content
+            if viewModel.isAuthenticated && viewModel.showChartsTab {
+                tabSelector
+            }
+            if selectedTab == 1 && viewModel.isAuthenticated && viewModel.showChartsTab {
+                chartsContent
+            } else {
+                content
+            }
             Divider()
             footer
         }
         .padding(19 * s)
         .frame(width: baseWidth * s)
+        .onChange(of: viewModel.showChartsTab) { _, enabled in
+            if !enabled { selectedTab = 0 }
+        }
     }
 
     // MARK: - Header
@@ -38,6 +50,31 @@ struct MenuBarView: View {
                     .foregroundStyle(Color.purple)
             }
         }
+    }
+
+    // MARK: - Tab Selector
+
+    private var tabSelector: some View {
+        HStack(spacing: 1 * s) {
+            tabButton("Usage", tag: 0)
+            tabButton("Charts", tag: 1)
+        }
+        .padding(2 * s)
+        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 7 * s))
+        .frame(maxWidth: .infinity)
+    }
+
+    private func tabButton(_ label: String, tag: Int) -> some View {
+        Text(label)
+            .font(sf(11, selectedTab == tag ? .semibold : .regular))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4 * s)
+            .background(
+                selectedTab == tag ? Color.primary.opacity(0.1) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 5 * s)
+            )
+            .contentShape(Rectangle())
+            .onTapGesture { selectedTab = tag }
     }
 
     // MARK: - Content
@@ -149,6 +186,167 @@ struct MenuBarView: View {
         )
     }
 
+    // MARK: - Charts
+
+    @AppStorage("chartTimeRange") private var chartTimeRange: ChartTimeRange = .oneDay
+
+    @ViewBuilder
+    private var chartsContent: some View {
+        let now = Date()
+        let cutoff = now.addingTimeInterval(-chartTimeRange.hours * 3600)
+        let xDomain = cutoff...now
+        let visible = viewModel.usageHistory.filter { $0.timestamp >= cutoff }
+
+        VStack(alignment: .leading, spacing: 10 * s) {
+            timeRangePicker
+            if visible.isEmpty {
+                Text("No data for this period")
+                    .font(sf(12))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 16 * s)
+            } else {
+                VStack(alignment: .leading, spacing: 14 * s) {
+                    windowCharts(title: "5-Hour", utilKeyPath: \.fiveHour, paceKeyPath: \.fiveHourPace, history: visible, xDomain: xDomain)
+                    Divider()
+                    windowCharts(title: "7-Day", utilKeyPath: \.sevenDay, paceKeyPath: \.sevenDayPace, history: visible, xDomain: xDomain)
+                }
+            }
+        }
+    }
+
+    private var timeRangePicker: some View {
+        HStack(spacing: 1 * s) {
+            ForEach(ChartTimeRange.allCases, id: \.self) { range in
+                Text(range.rawValue)
+                    .font(sf(11, chartTimeRange == range ? .semibold : .regular))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4 * s)
+                    .background(
+                        chartTimeRange == range ? Color.primary.opacity(0.1) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 5 * s)
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture { chartTimeRange = range }
+            }
+        }
+        .padding(2 * s)
+        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 7 * s))
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func windowCharts(
+        title: String,
+        utilKeyPath: KeyPath<UsageDataPoint, Double?>,
+        paceKeyPath: KeyPath<UsageDataPoint, Double?>,
+        history: [UsageDataPoint],
+        xDomain: ClosedRange<Date>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8 * s) {
+            Text(title)
+                .font(sf(11, .semibold))
+            miniChart(
+                label: "Utilization",
+                filtered: history,
+                keyPath: utilKeyPath,
+                domain: 0...100,
+                xDomain: xDomain,
+                formatLabel: { "\(Int($0))%" }
+            )
+            miniChart(
+                label: "Pace",
+                filtered: history,
+                keyPath: paceKeyPath,
+                domain: nil,
+                xDomain: xDomain,
+                formatLabel: { String(format: "%.1f%%/hr", $0) }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func miniChart(
+        label: String,
+        filtered: [UsageDataPoint],
+        keyPath: KeyPath<UsageDataPoint, Double?>,
+        domain: ClosedRange<Double>?,
+        xDomain: ClosedRange<Date>,
+        formatLabel: @escaping (Double) -> String
+    ) -> some View {
+        let values: [Double] = filtered.compactMap { $0[keyPath: keyPath] }
+        let peak = values.max() ?? 0
+        let avg = values.isEmpty ? 0.0 : values.reduce(0, +) / Double(values.count)
+        let color: Color = label == "Utilization"
+            ? urgencyColor((values.last ?? 0) / 100.0)
+            : Color.blue
+        let span = xDomain.upperBound.timeIntervalSince(xDomain.lowerBound)
+        let xFormat: Date.FormatStyle = span < 25 * 3600
+            ? .dateTime.hour().minute()
+            : .dateTime.month(.abbreviated).day()
+
+        VStack(alignment: .leading, spacing: 3 * s) {
+            HStack {
+                Text(label)
+                    .font(sf(10))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if !values.isEmpty {
+                    Text("pk \(formatLabel(peak))  avg \(formatLabel(avg.rounded()))")
+                        .font(sf(9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if values.count < 2 {
+                Text("Collecting…")
+                    .font(sf(9))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(height: 50 * s)
+            } else {
+                Chart(filtered) { dp in
+                    if let v = dp[keyPath: keyPath] {
+                        AreaMark(
+                            x: .value("Time", dp.timestamp),
+                            y: .value(label, v)
+                        )
+                        .foregroundStyle(color.opacity(0.15))
+                        .interpolationMethod(.monotone)
+                        LineMark(
+                            x: .value("Time", dp.timestamp),
+                            y: .value(label, v)
+                        )
+                        .foregroundStyle(color)
+                        .lineStyle(StrokeStyle(lineWidth: 1.5))
+                        .interpolationMethod(.monotone)
+                    }
+                }
+                .chartYScale(domain: domain ?? (0...max(values.max().map { $0 * 1.2 } ?? 1, 1)))
+                .chartXScale(domain: xDomain)
+                .chartXAxis {
+                    AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                            .foregroundStyle(Color.secondary.opacity(0.2))
+                        AxisValueLabel(format: xFormat)
+                            .font(.system(size: 8 * s))
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .trailing, values: .automatic(desiredCount: 2)) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                            .foregroundStyle(Color.secondary.opacity(0.25))
+                        AxisValueLabel {
+                            if let v = value.as(Double.self) {
+                                Text(formatLabel(v)).font(.system(size: 8 * s))
+                            }
+                        }
+                    }
+                }
+                .frame(height: 60 * s)
+            }
+        }
+    }
+
     // MARK: - Footer
 
     private var footer: some View {
@@ -174,6 +372,24 @@ struct MenuBarView: View {
             }
             .buttonStyle(.link)
             .font(sf(11))
+        }
+    }
+}
+
+// MARK: - Chart Time Range
+
+private enum ChartTimeRange: String, CaseIterable {
+    case fiveHours  = "5h"
+    case oneDay     = "24h"
+    case sevenDays  = "7d"
+    case thirtyDays = "30d"
+
+    var hours: Double {
+        switch self {
+        case .fiveHours:  return 5
+        case .oneDay:     return 24
+        case .sevenDays:  return 168
+        case .thirtyDays: return 720
         }
     }
 }

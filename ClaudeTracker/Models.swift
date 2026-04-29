@@ -152,6 +152,22 @@ struct AccountOrganization: Codable {
     }
 }
 
+// MARK: - Usage History
+
+/// A single timestamped utilization snapshot, stored persistently for the charts tab.
+///
+/// Sampled at most once every 5 minutes regardless of poll rate, so a 2016-entry cap
+/// covers exactly 7 days — the full 7-day window at this resolution.
+struct UsageDataPoint: Codable, Identifiable {
+    let timestamp: Date
+    let fiveHour: Double?
+    let sevenDay: Double?
+    /// Consumption rate in %/hr at snapshot time; nil when history was insufficient.
+    let fiveHourPace: Double?
+    let sevenDayPace: Double?
+    var id: Date { timestamp }
+}
+
 // MARK: - Menu Bar Display Option
 
 /// The rate-limit window whose utilization the menu bar label tracks.

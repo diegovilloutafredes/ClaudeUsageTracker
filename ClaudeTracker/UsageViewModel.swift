@@ -80,6 +80,11 @@ final class UsageViewModel: ObservableObject {
     private var paceWarned: Set<String> = []
     /// Toast IDs for active pace alerts, keyed by window key, so they can be dismissed when pace improves.
     private var paceToastIDs: [String: UUID] = [:]
+    /// Historical utilization snapshots, sampled at most once per 5 minutes, for the Charts tab.
+    @Published var usageHistory: [UsageDataPoint] = []
+    /// Whether the Charts tab is shown in the popover.
+    @Published var showChartsTab: Bool = true
+    private var lastHistoryTimestamp: Date? = nil
 
     init() {
         let saved = UserDefaults.standard.double(forKey: "refreshInterval")
@@ -126,6 +131,12 @@ final class UsageViewModel: ObservableObject {
         }
         let savedPopupScale = UserDefaults.standard.double(forKey: "popupScale")
         popupScale = savedPopupScale > 0 ? savedPopupScale : 1.0
+
+        showChartsTab = UserDefaults.standard.object(forKey: "showChartsTab") as? Bool ?? true
+        if let historyData = UserDefaults.standard.data(forKey: "usageHistory"),
+           let decoded = try? JSONDecoder().decode([UsageDataPoint].self, from: historyData) {
+            usageHistory = decoded
+        }
 
         $menuBarWindow
             .dropFirst().removeDuplicates()
@@ -193,6 +204,10 @@ final class UsageViewModel: ObservableObject {
 
         $popupScale.dropFirst().removeDuplicates()
             .sink { UserDefaults.standard.set($0, forKey: "popupScale") }
+            .store(in: &cancellables)
+
+        $showChartsTab.dropFirst().removeDuplicates()
+            .sink { UserDefaults.standard.set($0, forKey: "showChartsTab") }
             .store(in: &cancellables)
 
         UNUserNotificationCenter.current().delegate = notificationDelegate
@@ -294,6 +309,7 @@ final class UsageViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 checkForResets(old: usage, new: response)
                 recordHistory(response)
+                appendDataPoint(response)
                 checkPaceNotifications(response)
                 usage = response
                 error = nil
@@ -594,6 +610,27 @@ final class UsageViewModel: ObservableObject {
         let remaining = 100.0 - newest.1
         let projectedHours: Double? = remaining > 0 ? remaining / rate : nil
         return (rate, projectedHours)
+    }
+
+    private func appendDataPoint(_ response: UsageResponse) {
+        let now = Date()
+        if let last = lastHistoryTimestamp, now.timeIntervalSince(last) < 300 { return }
+        lastHistoryTimestamp = now
+        let point = UsageDataPoint(
+            timestamp: now,
+            fiveHour: response.fiveHour?.utilization,
+            sevenDay: response.sevenDay?.utilization,
+            fiveHourPace: pace(for: "five_hour")?.rate,
+            sevenDayPace: pace(for: "seven_day")?.rate
+        )
+        let cutoff = now.addingTimeInterval(-30 * 24 * 3600)
+        var history = usageHistory.filter { $0.timestamp >= cutoff }
+        history.append(point)
+        if history.count > 8640 { history = Array(history.suffix(8640)) }
+        usageHistory = history
+        if let data = try? JSONEncoder().encode(history) {
+            UserDefaults.standard.set(data, forKey: "usageHistory")
+        }
     }
 
     // MARK: - Update Check

@@ -121,6 +121,9 @@ struct SettingsView: View {
                     .frame(width: 40, alignment: .trailing)
             }
 
+            Toggle("Show charts tab", isOn: $viewModel.showChartsTab)
+                .toggleStyle(GreenSwitchStyle())
+
             Toggle("Show pace indicator", isOn: $viewModel.showPace)
                 .toggleStyle(GreenSwitchStyle())
 
