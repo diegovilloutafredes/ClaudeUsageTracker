@@ -29,6 +29,7 @@ struct MenuBarView: View {
         }
         .padding(19 * s)
         .frame(width: baseWidth * s)
+        .fixedSize(horizontal: false, vertical: true)
         .onChange(of: viewModel.showChartsTab) { _, enabled in
             if !enabled { selectedTab = 0 }
         }
