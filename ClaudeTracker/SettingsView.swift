@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The preferences window, opened via the Settings menu item or the "Settings" link in the popover.
 struct SettingsView: View {
-    @ObservedObject var viewModel: UsageViewModel
+    @Bindable var viewModel: UsageViewModel
 
     var body: some View {
         let sf = NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)

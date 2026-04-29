@@ -3,7 +3,7 @@ import Charts
 
 /// The popover content shown when the user clicks the menu bar icon.
 struct MenuBarView: View {
-    @ObservedObject var viewModel: UsageViewModel
+    var viewModel: UsageViewModel
     @Environment(\.openSettings) private var openSettings
 
     @AppStorage("selectedTab") private var selectedTab = 0

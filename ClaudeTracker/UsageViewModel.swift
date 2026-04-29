@@ -26,53 +26,104 @@ private final class NotificationDelegate: NSObject, UNUserNotificationCenterDele
 }
 
 /// Central state for the app — owns API polling, UserDefaults persistence, and notification dispatch.
-@MainActor
-final class UsageViewModel: ObservableObject {
-    @Published var refreshInterval: Double = 5.0
-    @Published var availableUpdate: UpdateInfo? = nil
-    @Published var isCheckingForUpdates = false
-    @Published var updateDownloadState: UpdateDownloadState = .idle
+@Observable @MainActor
+final class UsageViewModel {
+    var refreshInterval: Double = 5.0 {
+        didSet {
+            guard refreshInterval != oldValue else { return }
+            UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval")
+            debounceRestartPolling()
+        }
+    }
+    var availableUpdate: UpdateInfo? = nil
+    var isCheckingForUpdates = false
+    var updateDownloadState: UpdateDownloadState = .idle
     /// Which window's utilization the menu bar label tracks.
-    @Published var menuBarWindow: MenuBarWindow = .fiveHour
-    @Published var usage: UsageResponse?
-    @Published var error: String?
-    @Published var isLoading = false
-    @Published var lastUpdated: Date?
-    @Published var isAuthenticated = false
-    @Published var accountInfo: AccountInfo?
+    var menuBarWindow: MenuBarWindow = .fiveHour {
+        didSet {
+            guard menuBarWindow != oldValue else { return }
+            UserDefaults.standard.set(menuBarWindow.rawValue, forKey: "menuBarWindow")
+        }
+    }
+    var usage: UsageResponse?
+    var error: String?
+    var isLoading = false
+    var lastUpdated: Date?
+    var isAuthenticated = false
+    var accountInfo: AccountInfo?
 
     // MARK: Notification preferences
 
-    @Published var notify5Hour: Bool = true
-    @Published var notify7Day:  Bool = false
-
+    var notify5Hour: Bool = true {
+        didSet { guard notify5Hour != oldValue else { return }; UserDefaults.standard.set(notify5Hour, forKey: "notify5Hour") }
+    }
+    var notify7Day: Bool = false {
+        didSet { guard notify7Day != oldValue else { return }; UserDefaults.standard.set(notify7Day, forKey: "notify7Day") }
+    }
     /// Stored under the key `"notifyOnReset"` in `UserDefaults` for backwards compatibility
     /// with installations that had the earlier single-toggle banner preference.
-    @Published var notifyBanner:  Bool   = true
-    @Published var notifyToast:   Bool   = true
-    @Published var notifySound:   Bool   = true
-    @Published var toastDuration: Double = 3.0
-    @Published var toastPermanent: Bool  = false
+    var notifyBanner: Bool = true {
+        didSet { guard notifyBanner != oldValue else { return }; UserDefaults.standard.set(notifyBanner, forKey: "notifyOnReset") }
+    }
+    var notifyToast: Bool = true {
+        didSet { guard notifyToast != oldValue else { return }; UserDefaults.standard.set(notifyToast, forKey: "notifyToast") }
+    }
+    var notifySound: Bool = true {
+        didSet { guard notifySound != oldValue else { return }; UserDefaults.standard.set(notifySound, forKey: "notifySound") }
+    }
+    var toastDuration: Double = 3.0 {
+        didSet { guard toastDuration != oldValue else { return }; UserDefaults.standard.set(toastDuration, forKey: "toastDuration") }
+    }
+    var toastPermanent: Bool = false {
+        didSet { guard toastPermanent != oldValue else { return }; UserDefaults.standard.set(toastPermanent, forKey: "toastPermanent") }
+    }
 
     /// Whether the pace line is shown inside each window row in the popover.
-    @Published var showPace: Bool = true
+    var showPace: Bool = true {
+        didSet { guard showPace != oldValue else { return }; UserDefaults.standard.set(showPace, forKey: "showPace") }
+    }
     /// Whether a notification fires when a watched window is projected to fill before it resets.
-    @Published var notifyPace: Bool = false
+    var notifyPace: Bool = false {
+        didSet { guard notifyPace != oldValue else { return }; UserDefaults.standard.set(notifyPace, forKey: "notifyPace") }
+    }
     /// Threshold in minutes: fire the pace alert when projected full time drops below this value.
-    @Published var paceWarningMinutes: Double = 30
+    var paceWarningMinutes: Double = 30 {
+        didSet { guard paceWarningMinutes != oldValue else { return }; UserDefaults.standard.set(paceWarningMinutes, forKey: "paceWarningMinutes") }
+    }
     /// Toast duration for pace alerts, independent of the reset-notification toast duration.
-    @Published var paceToastDuration: Double = 5.0
+    var paceToastDuration: Double = 5.0 {
+        didSet { guard paceToastDuration != oldValue else { return }; UserDefaults.standard.set(paceToastDuration, forKey: "paceToastDuration") }
+    }
     /// When `true`, pace alert toasts stay on screen until dismissed by the user.
-    @Published var paceToastPermanent: Bool = false
+    var paceToastPermanent: Bool = false {
+        didSet { guard paceToastPermanent != oldValue else { return }; UserDefaults.standard.set(paceToastPermanent, forKey: "paceToastPermanent") }
+    }
     /// Rolling history window in minutes; older samples are discarded.
-    @Published var paceHistoryMinutes: Double = 15
+    var paceHistoryMinutes: Double = 15 {
+        didSet { guard paceHistoryMinutes != oldValue else { return }; UserDefaults.standard.set(paceHistoryMinutes, forKey: "paceHistoryMinutes") }
+    }
     /// Multiplier applied to all spacing, padding, font sizes, and width in the popover.
-    @Published var popupScale: Double = 1.0
+    var popupScale: Double = 1.0 {
+        didSet { guard popupScale != oldValue else { return }; UserDefaults.standard.set(popupScale, forKey: "popupScale") }
+    }
+    /// Historical utilization snapshots, sampled at most once per 5 minutes, for the Charts tab.
+    var usageHistory: [UsageDataPoint] = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(usageHistory) {
+                UserDefaults.standard.set(data, forKey: "usageHistory")
+            }
+        }
+    }
+    /// Whether the Charts tab is shown in the popover.
+    var showChartsTab: Bool = true {
+        didSet { guard showChartsTab != oldValue else { return }; UserDefaults.standard.set(showChartsTab, forKey: "showChartsTab") }
+    }
 
-    let apiService = ClaudeAPIService()
-    private var timer: AnyCancellable?
-    private var cancellables = Set<AnyCancellable>()
-    private var fetchTask: Task<Void, Never>?
+    @ObservationIgnored let apiService = ClaudeAPIService()
+    @ObservationIgnored private var timer: AnyCancellable?
+    @ObservationIgnored private var appearanceCancellable: AnyCancellable?
+    @ObservationIgnored private var debounceTask: Task<Void, Never>?
+    @ObservationIgnored private var fetchTask: Task<Void, Never>?
     /// Increments on every failed fetch; drives exponential backoff in `applyBackoff()`.
     private var consecutiveErrors = 0
     /// Tracks the parsed `resetsAt` date seen in the previous fetch for each window key.
@@ -81,17 +132,13 @@ final class UsageViewModel: ObservableObject {
     /// Avoids rebuilding `menuBarImage` when neither the icon name nor the status text has changed.
     private var cachedMenuBarKey = ""
     private var cachedMenuBarImage = NSImage()
-    private let notificationDelegate = NotificationDelegate()
+    @ObservationIgnored private let notificationDelegate = NotificationDelegate()
     /// Rolling utilization history per window key, used to compute consumption pace.
     private var utilizationHistory: [String: [(Date, Double)]] = [:]
     /// Window keys for which a pace alert has already fired in the current window period.
     private var paceWarned: Set<String> = []
     /// Toast IDs for active pace alerts, keyed by window key, so they can be dismissed when pace improves.
     private var paceToastIDs: [String: UUID] = [:]
-    /// Historical utilization snapshots, sampled at most once per 5 minutes, for the Charts tab.
-    @Published var usageHistory: [UsageDataPoint] = []
-    /// Whether the Charts tab is shown in the popover.
-    @Published var showChartsTab: Bool = true
     private var lastHistoryTimestamp: Date? = nil
 
     init() {
@@ -146,92 +193,18 @@ final class UsageViewModel: ObservableObject {
             usageHistory = decoded
         }
 
-        $menuBarWindow
-            .dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0.rawValue, forKey: "menuBarWindow") }
-            .store(in: &cancellables)
-
-        $refreshInterval
-            .dropFirst()
-            .debounce(for: .seconds(0.3), scheduler: RunLoop.main)
-            .removeDuplicates()
-            .sink { [weak self] _ in self?.startPolling() }
-            .store(in: &cancellables)
-
-        $notifyBanner.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "notifyOnReset") }
-            .store(in: &cancellables)
-
-        $notifySound.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "notifySound") }
-            .store(in: &cancellables)
-
-        $notifyToast.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "notifyToast") }
-            .store(in: &cancellables)
-
-        $notify5Hour.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "notify5Hour") }
-            .store(in: &cancellables)
-
-        $notify7Day.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "notify7Day") }
-            .store(in: &cancellables)
-
-        $toastDuration.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "toastDuration") }
-            .store(in: &cancellables)
-
-        $toastPermanent.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "toastPermanent") }
-            .store(in: &cancellables)
-
-        $showPace.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "showPace") }
-            .store(in: &cancellables)
-
-        $notifyPace.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "notifyPace") }
-            .store(in: &cancellables)
-
-        $paceWarningMinutes.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "paceWarningMinutes") }
-            .store(in: &cancellables)
-
-        $paceToastDuration.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "paceToastDuration") }
-            .store(in: &cancellables)
-
-        $paceToastPermanent.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "paceToastPermanent") }
-            .store(in: &cancellables)
-
-        $paceHistoryMinutes.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "paceHistoryMinutes") }
-            .store(in: &cancellables)
-
-        $popupScale.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "popupScale") }
-            .store(in: &cancellables)
-
-        $showChartsTab.dropFirst().removeDuplicates()
-            .sink { UserDefaults.standard.set($0, forKey: "showChartsTab") }
-            .store(in: &cancellables)
-
         UNUserNotificationCenter.current().delegate = notificationDelegate
         requestNotificationPermission()
         checkExistingSession()
         Task { try? await Task.sleep(for: .seconds(10)); checkForUpdates() }
 
-        NSApp.publisher(for: \.effectiveAppearance)
+        appearanceCancellable = NSApp.publisher(for: \.effectiveAppearance)
             .dropFirst()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.cachedMenuBarKey = ""
-                self.objectWillChange.send()
             }
-            .store(in: &cancellables)
     }
 
     // MARK: - Session
@@ -536,6 +509,15 @@ final class UsageViewModel: ObservableObject {
 
     // MARK: - Private
 
+    private func debounceRestartPolling() {
+        debounceTask?.cancel()
+        debounceTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled, let self else { return }
+            self.startPolling()
+        }
+    }
+
     // MARK: - Pace
 
     /// Appends the current utilization readings to the rolling history for each window.
@@ -628,9 +610,6 @@ final class UsageViewModel: ObservableObject {
         history.append(point)
         if history.count > 8640 { history = Array(history.suffix(8640)) }
         usageHistory = history
-        if let data = try? JSONEncoder().encode(history) {
-            UserDefaults.standard.set(data, forKey: "usageHistory")
-        }
     }
 
     // MARK: - Update Check

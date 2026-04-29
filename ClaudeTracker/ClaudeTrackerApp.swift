@@ -7,7 +7,7 @@ import SwiftUI
 /// rather than a native menu — required for SwiftUI interactive controls to work correctly inside it.
 @main
 struct ClaudeTrackerApp: App {
-    @StateObject private var viewModel = UsageViewModel()
+    @State private var viewModel = UsageViewModel()
 
     var body: some Scene {
         MenuBarExtra {
