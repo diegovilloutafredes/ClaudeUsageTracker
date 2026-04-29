@@ -457,16 +457,38 @@ struct UsageWindowView: View {
     }
 
     private func paceOutlook(proj: Double, hoursToReset: Double) -> (String, LocalizedStringKey, Color) {
+        let seed = abs(Int(hoursToReset * 7))
+
         if proj >= hoursToReset {
-            return ("checkmark.circle", "On track — resets before limit", Color.secondary)
+            let messages: [LocalizedStringKey] = [
+                "On track — resets before limit",
+                "You're good — resets in time",
+                "All clear — window resets first",
+                "Safe — usage resets before full",
+                "No rush — plenty of time left",
+            ]
+            return ("checkmark.circle", messages[seed % messages.count], Color.secondary)
         } else if proj >= hoursToReset * 0.8 {
-            return ("exclamationmark.circle", "Getting close — may hit limit", urgencyColor(0.7))
+            let messages: [LocalizedStringKey] = [
+                "Getting close — may hit limit",
+                "Pace is high — watch your usage",
+                "Caution — cutting it close",
+                "Almost at the edge — ease up",
+                "Trending toward the limit",
+            ]
+            return ("exclamationmark.circle", messages[seed % messages.count], urgencyColor(0.7))
         } else {
             let early = hoursToReset - proj
             let timeStr = early < 1
                 ? "~\(max(1, Int(early * 60)))m"
                 : "~\(Int(early.rounded()))h"
-            return ("exclamationmark.triangle.fill", "Will hit limit \(timeStr) before reset", urgencyColor(1.0))
+            let messages: [LocalizedStringKey] = [
+                "Will hit limit \(timeStr) before reset",
+                "Runs out \(timeStr) before reset",
+                "On pace to fill \(timeStr) early",
+                "Full \(timeStr) before window resets",
+            ]
+            return ("exclamationmark.triangle.fill", messages[seed % messages.count], urgencyColor(1.0))
         }
     }
 

@@ -155,6 +155,28 @@
         }
       }
     },
+    "All clear — window resets first" : {
+      "comment" : "Pace outlook: safe, window resets before limit",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin problemas — la ventana se reinicia primero"
+          }
+        }
+      }
+    },
+    "Almost at the edge — ease up" : {
+      "comment" : "Pace outlook: warning, close to limit",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Casi al límite — modera el uso"
+          }
+        }
+      }
+    },
     "Approaching usage limit" : {
       "comment" : "Pace alert notification title",
       "localizations" : {
@@ -162,6 +184,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Acercándose al límite de uso"
+          }
+        }
+      }
+    },
+    "Caution — cutting it close" : {
+      "comment" : "Pace outlook: warning, may hit limit",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Precaución — va muy justo"
           }
         }
       }
@@ -287,6 +320,17 @@
         }
       }
     },
+    "Full %@ before window resets" : {
+      "comment" : "Pace outlook: critical, limit reached before reset, with time delta",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lleno %@ antes de que reinicie la ventana"
+          }
+        }
+      }
+    },
     "Getting close — may hit limit" : {
       "comment" : "Pace outlook: warning that limit may be reached",
       "localizations" : {
@@ -364,6 +408,17 @@
         }
       }
     },
+    "No rush — plenty of time left" : {
+      "comment" : "Pace outlook: safe, plenty of headroom",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin prisa — queda bastante tiempo"
+          }
+        }
+      }
+    },
     "Not signed in" : {
       "comment" : "Empty state label and account status when not authenticated",
       "localizations" : {
@@ -382,6 +437,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notificar al acercarse al límite"
+          }
+        }
+      }
+    },
+    "On pace to fill %@ early" : {
+      "comment" : "Pace outlook: critical, will fill before reset, with time delta",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al ritmo actual, se llenará %@ antes"
           }
         }
       }
@@ -426,6 +492,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Alertas de ritmo"
+          }
+        }
+      }
+    },
+    "Pace is high — watch your usage" : {
+      "comment" : "Pace outlook: warning, consumption rate is elevated",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ritmo elevado — controla tu uso"
           }
         }
       }
@@ -514,6 +591,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reinicia en %@"
+          }
+        }
+      }
+    },
+    "Runs out %@ before reset" : {
+      "comment" : "Pace outlook: critical, limit reached before reset, with time delta",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se agota %@ antes del reinicio"
+          }
+        }
+      }
+    },
+    "Safe — usage resets before full" : {
+      "comment" : "Pace outlook: safe, usage will reset before limit",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seguro — reinicio antes de llenarse"
           }
         }
       }
@@ -727,6 +826,17 @@
         }
       }
     },
+    "Trending toward the limit" : {
+      "comment" : "Pace outlook: warning, usage trending toward limit",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tendencia hacia el límite"
+          }
+        }
+      }
+    },
     "Unofficial tool — not affiliated with or endorsed by Anthropic. May break if Anthropic changes their web API." : {
       "comment" : "Disclaimer footer in settings account section",
       "localizations" : {
@@ -811,6 +921,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notificaciones de reinicio de ventana"
+          }
+        }
+      }
+    },
+    "You're good — resets in time" : {
+      "comment" : "Pace outlook: safe, window will reset before limit",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Todo bien — se reinicia a tiempo"
           }
         }
       }
