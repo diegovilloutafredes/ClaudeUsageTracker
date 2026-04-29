@@ -236,6 +236,7 @@ struct SettingsView: View {
             Text("Alert when a watched window is projected to fill before it resets, based on your current consumption rate.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

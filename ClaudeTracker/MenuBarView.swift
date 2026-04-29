@@ -7,6 +7,7 @@ struct MenuBarView: View {
     @Environment(\.openSettings) private var openSettings
 
     @AppStorage("selectedTab") private var selectedTab = 0
+    @State private var contentHeight: CGFloat = 0
     private let baseWidth: CGFloat = 312
     private var s: CGFloat { CGFloat(viewModel.popupScale) }
     private func sf(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
@@ -30,7 +31,14 @@ struct MenuBarView: View {
         .padding(19 * s)
         .frame(width: baseWidth * s)
         .fixedSize(horizontal: false, vertical: true)
-        .background(PopoverResizer())
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { contentHeight = geo.size.height }
+                    .onChange(of: geo.size.height) { _, h in contentHeight = h }
+            }
+        )
+        .background(PopoverResizer(height: contentHeight))
         .onChange(of: viewModel.showChartsTab) { _, enabled in
             if !enabled { selectedTab = 0 }
         }
@@ -382,20 +390,23 @@ struct MenuBarView: View {
 
 // MARK: - Popover Resizer
 
-/// Forces the MenuBarExtra NSPanel to match the SwiftUI content height on every layout pass.
-/// SwiftUI's fixedSize modifier alone does not reliably resize the panel after the first render.
+/// Forces the MenuBarExtra NSPanel to match the SwiftUI content height whenever it changes.
+/// SwiftUI's fixedSize modifier alone does not resize the panel after the first render, and
+/// updateNSView is only called when the struct's stored properties change — so height must
+/// be passed explicitly to guarantee a call on every tab switch.
 private struct PopoverResizer: NSViewRepresentable {
+    let height: CGFloat
+
     func makeNSView(context: Context) -> NSView { NSView() }
 
     func updateNSView(_ nsView: NSView, context: Context) {
+        guard height > 10 else { return }
         DispatchQueue.main.async {
-            guard let window = nsView.window,
-                  let content = window.contentView else { return }
-            let h = content.fittingSize.height
-            guard h > 10, abs(window.frame.height - h) > 1 else { return }
+            guard let window = nsView.window else { return }
+            guard abs(window.frame.height - height) > 1 else { return }
             var frame = window.frame
-            frame.origin.y = frame.maxY - h
-            frame.size.height = h
+            frame.origin.y = frame.maxY - height
+            frame.size.height = height
             window.setFrame(frame, display: true, animate: false)
         }
     }
