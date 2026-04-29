@@ -25,3 +25,12 @@ jobs:
             -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project ClaudeTracker.xcodeproj \
+            -scheme ClaudeTrackerTests \
+            -destination 'platform=macOS' \
+            SWIFT_STRICT_CONCURRENCY=minimal \
+            CODE_SIGN_IDENTITY="-"
