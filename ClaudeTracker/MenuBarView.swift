@@ -224,10 +224,12 @@ struct UsageWindowView: View {
     }
 
     private func paceLine(rate: Double) -> some View {
-        let concerning: Bool = {
-            guard let proj = projectedHours, let resetDate = window.resetsAtDate else { return false }
+        let urgency: Double = {
+            guard let proj = projectedHours, proj > 0,
+                  let resetDate = window.resetsAtDate else { return 0 }
             let hoursToReset = resetDate.timeIntervalSinceNow / 3600
-            return hoursToReset > 0 && proj < hoursToReset
+            guard hoursToReset > 0 else { return 0 }
+            return min(hoursToReset / proj, 1.0)
         }()
 
         let rateText = String(format: "+%.1f%%/hr", rate)
@@ -245,6 +247,6 @@ struct UsageWindowView: View {
             Text([rateText, projText].compactMap { $0 }.joined(separator: " "))
         }
         .font(sf(11))
-        .foregroundStyle(concerning ? Color.orange : Color.secondary)
+        .foregroundStyle(urgency > 0 ? urgencyColor(urgency) : Color.secondary)
     }
 }

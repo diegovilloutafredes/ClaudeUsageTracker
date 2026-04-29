@@ -350,18 +350,37 @@ final class UsageViewModel: ObservableObject {
     }
 
     var statusIcon: String {
-        let util = displayedUtilization
-        if util >= 80 { return "exclamationmark.triangle.fill" }
-        if util >= 50 { return "bolt.badge.clock.fill" }
+        let effectiveUrgency = max(displayedUtilization / 100.0, displayedWindowPaceUrgency())
+        if effectiveUrgency >= 0.8 { return "exclamationmark.triangle.fill" }
+        if effectiveUrgency >= 0.5 { return "bolt.badge.clock.fill" }
         return "bolt.fill"
     }
 
     var statusColor: NSColor {
         guard isAuthenticated, usage != nil else { return .labelColor }
-        let util = displayedUtilization
-        if util >= 80 { return .systemRed }
-        if util >= 50 { return .systemOrange }
-        return .systemGreen
+        let effectiveUrgency = max(displayedUtilization / 100.0, displayedWindowPaceUrgency())
+        return urgencyNSColor(effectiveUrgency)
+    }
+
+    private func urgencyNSColor(_ urgency: Double) -> NSColor {
+        let t = max(0, min(1, urgency))
+        return NSColor(hue: 0.33 * (1 - t), saturation: 0.85, brightness: 0.9, alpha: 1.0)
+    }
+
+    private func displayedWindowPaceUrgency() -> Double {
+        let key: String
+        let window: UsageWindow?
+        switch menuBarWindow {
+        case .fiveHour: key = "five_hour"; window = usage?.fiveHour
+        case .sevenDay:  key = "seven_day";  window = usage?.sevenDay
+        }
+        guard let paceData = pace(for: key),
+              let proj = paceData.projectedHours,
+              proj > 0,
+              let resetDate = window?.resetsAtDate else { return 0 }
+        let hoursToReset = resetDate.timeIntervalSinceNow / 3600
+        guard hoursToReset > 0 else { return 0 }
+        return min(hoursToReset / proj, 1.0)
     }
 
     /// Composed SF Symbol + text image used as the menu bar label.
@@ -385,7 +404,7 @@ final class UsageViewModel: ObservableObject {
     private func buildMenuBarImage(iconName: String, text: String, color: NSColor) -> NSImage {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         let symbolConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [color, .white]))
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color, .labelColor]))
         let symbolImage = NSImage(systemSymbolName: iconName, accessibilityDescription: nil)?
             .withSymbolConfiguration(symbolConfig) ?? NSImage()
         let symbolSize = symbolImage.size

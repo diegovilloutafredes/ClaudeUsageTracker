@@ -1,6 +1,13 @@
 import Foundation
 import SwiftUI
 
+/// Maps a normalized urgency (0 = calm, 1 = critical) to a SwiftUI Color.
+/// Hue interpolates continuously: green (0) → yellow → orange → red (1).
+func urgencyColor(_ urgency: Double) -> Color {
+    let t = max(0, min(1, urgency))
+    return Color(hue: 0.33 * (1 - t), saturation: 0.85, brightness: 0.9)
+}
+
 /// Response payload from the `/api/organizations/{id}/usage` endpoint.
 struct UsageResponse: Codable {
     let fiveHour: UsageWindow?
@@ -55,11 +62,9 @@ struct UsageWindow: Codable {
         min(utilization / 100.0, 1.0)
     }
 
-    /// Traffic-light color reflecting urgency: red ≥ 80 %, orange ≥ 50 %, green otherwise.
+    /// Continuous urgency gradient: green (low) → yellow → orange → red (high).
     var utilizationColor: Color {
-        if utilization >= 80 { return .red }
-        if utilization >= 50 { return .orange }
-        return .green
+        urgencyColor(utilization / 100.0)
     }
 
     private static let formatterWithFractional: ISO8601DateFormatter = {

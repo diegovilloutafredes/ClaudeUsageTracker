@@ -17,6 +17,9 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate, WKUIDelegate {
     private var isLoadingPage = false
     private var cachedOrgId: String?
     private var cookieTimer: Timer?
+    private var popupWebView: WKWebView?
+    var onPopupRequested: ((WKWebView, WKWindowFeatures) -> Void)?
+    var onPopupDismissed: (() -> Void)?
 
     override init() {
         let config = WKWebViewConfiguration()
@@ -230,18 +233,31 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate, WKUIDelegate {
 
     // MARK: - WKUIDelegate
 
-    /// Routes popup/new-window requests (e.g. OAuth SSO flows) back into the
-    /// same webview instead of silently dropping them.
+    /// Creates a popup WKWebView for OAuth flows (e.g. "Continue with Google").
+    ///
+    /// WebKit passes the window-opener's configuration so the popup shares the same data store
+    /// and cookies. Returning a real WKWebView wires `window.opener` correctly so the OAuth
+    /// provider can post a message back to the login page after authentication completes.
+    /// Only `uiDelegate` is set on the popup — setting `navigationDelegate` would cause
+    /// `failAllWaiters`/`checkPageReady` to misfire for popup navigations.
     func webView(
         _ webView: WKWebView,
         createWebViewWith configuration: WKWebViewConfiguration,
         for navigationAction: WKNavigationAction,
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
-        if let url = navigationAction.request.url {
-            webView.load(URLRequest(url: url))
+        let popup = WKWebView(frame: .zero, configuration: configuration)
+        popup.uiDelegate = self
+        popupWebView = popup
+        onPopupRequested?(popup, windowFeatures)
+        return popup
+    }
+
+    func webViewDidClose(_ webView: WKWebView) {
+        if webView === popupWebView {
+            popupWebView = nil
+            onPopupDismissed?()
         }
-        return nil
     }
 
     // MARK: - WKNavigationDelegate

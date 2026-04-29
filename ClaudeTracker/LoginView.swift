@@ -7,9 +7,12 @@ import WebKit
 ///
 /// Reuses a single `NSWindow` across calls — clicking "Sign in" while the window is already
 /// open brings it to front rather than creating a duplicate.
+@MainActor
 final class LoginWindowController {
     static let shared = LoginWindowController()
     private var window: NSWindow?
+    private var popupWindow: NSWindow?
+    private var popupWindowObserver: NSObjectProtocol?
 
     /// Opens the sign-in window, or focuses it if already visible.
     ///
@@ -19,6 +22,13 @@ final class LoginWindowController {
     ///     The window closes automatically 1.5 s after this callback fires to let the
     ///     user see the success state before it disappears.
     func open(apiService: ClaudeAPIService, onSessionFound: @escaping (String) -> Void) {
+        apiService.onPopupRequested = { [weak self] popupView, _ in
+            self?.showPopup(webView: popupView)
+        }
+        apiService.onPopupDismissed = { [weak self] in
+            self?.closePopup()
+        }
+
         if let existing = window, existing.isVisible {
             existing.makeKeyAndOrderFront(nil)
             NSApp.activate()
@@ -50,8 +60,46 @@ final class LoginWindowController {
     }
 
     func close() {
+        closePopup()
         window?.close()
         window = nil
+    }
+
+    private func showPopup(webView: WKWebView) {
+        let popup = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 650),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        popup.title = "Sign in"
+        popup.isReleasedWhenClosed = false
+        popup.contentView = webView
+        if let parent = window {
+            popup.center()
+            parent.addChildWindow(popup, ordered: .above)
+        } else {
+            popup.center()
+        }
+        popup.makeKeyAndOrderFront(nil)
+        self.popupWindow = popup
+
+        popupWindowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: popup,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.closePopup() }
+        }
+    }
+
+    private func closePopup() {
+        if let observer = popupWindowObserver {
+            NotificationCenter.default.removeObserver(observer)
+            popupWindowObserver = nil
+        }
+        popupWindow?.close()
+        popupWindow = nil
     }
 }
 
