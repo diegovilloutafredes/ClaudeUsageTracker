@@ -81,6 +81,7 @@ struct SettingsView: View {
             Text("Unofficial tool — not affiliated with or endorsed by Anthropic. May break if Anthropic changes their web API.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

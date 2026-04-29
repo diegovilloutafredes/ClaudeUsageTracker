@@ -30,6 +30,7 @@ struct MenuBarView: View {
         .padding(19 * s)
         .frame(width: baseWidth * s)
         .fixedSize(horizontal: false, vertical: true)
+        .background(PopoverResizer())
         .onChange(of: viewModel.showChartsTab) { _, enabled in
             if !enabled { selectedTab = 0 }
         }
@@ -375,6 +376,27 @@ struct MenuBarView: View {
             }
             .buttonStyle(.link)
             .font(sf(11))
+        }
+    }
+}
+
+// MARK: - Popover Resizer
+
+/// Forces the MenuBarExtra NSPanel to match the SwiftUI content height on every layout pass.
+/// SwiftUI's fixedSize modifier alone does not reliably resize the panel after the first render.
+private struct PopoverResizer: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = nsView.window,
+                  let content = window.contentView else { return }
+            let h = content.fittingSize.height
+            guard h > 10, abs(window.frame.height - h) > 1 else { return }
+            var frame = window.frame
+            frame.origin.y = frame.maxY - h
+            frame.size.height = h
+            window.setFrame(frame, display: true, animate: false)
         }
     }
 }
