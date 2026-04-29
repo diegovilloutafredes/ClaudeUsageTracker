@@ -385,7 +385,7 @@ final class UsageViewModel: ObservableObject {
     private func buildMenuBarImage(iconName: String, text: String, color: NSColor) -> NSImage {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         let symbolConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color, .white]))
         let symbolImage = NSImage(systemSymbolName: iconName, accessibilityDescription: nil)?
             .withSymbolConfiguration(symbolConfig) ?? NSImage()
         let symbolSize = symbolImage.size

@@ -13,9 +13,11 @@ A macOS menu bar app that shows your [Claude AI](https://claude.ai) usage limits
 - Menu bar label showing the selected window's utilization percentage at a glance; the icon is color-coded green / orange / red while the percentage stays in the default system color
 - Subscription badge (Pro, Max 5x, Max 20x, Team, Enterprise)
 - **Pace indicator** — shows current consumption rate (%/hr) and projected time to full; configurable rate window (5/10/15/30 min)
-- **Pace alerts** — toast/sound/banner notification when a window is projected to fill before it resets
+- **Pace alerts** — toast/sound/banner notification when a window is projected to fill before it resets; auto-dismissed when pace improves past the warning threshold
 - Configurable notifications when a window resets: toast near the menu bar, sound, and system banner
   - Toast duration slider (1-30 s) or permanent mode until dismissed
+- **Popup scale** — slider (75–150%) to resize the popover proportionally
+- **Update checker** — checks GitHub Releases on launch and in Settings; shows a download link when a newer version is available
 - Configurable refresh interval (1-60 seconds, default 5 s)
 - No API key required — uses your existing claude.ai browser session
 
@@ -29,13 +31,18 @@ A macOS menu bar app that shows your [Claude AI](https://claude.ai) usage limits
 
 ### Download a release
 
-1. Go to [Releases](https://github.com/diegovilloutafredes/ClaudeTracker/releases) and download the latest `ClaudeTracker.zip`
-2. Unzip it
-3. Double-click `install.command` — it copies the app to `/Applications`, strips the Gatekeeper quarantine flag, and launches it
+Go to [Releases](https://github.com/diegovilloutafredes/ClaudeTracker/releases) and download the latest version. Two formats are provided:
 
-The quarantine flag is removed automatically by the installer. No manual `xattr` step is needed.
+**DMG (recommended)**
+1. Open `ClaudeTracker.dmg`
+2. Drag `ClaudeTracker.app` to the `/Applications` shortcut in the window
+3. Launch from Applications
 
-> If you drag the app to Applications yourself instead of using `install.command`, macOS will block the first launch because the app is not signed with a Developer ID certificate. Right-click the app and choose Open to proceed.
+**ZIP (fallback)**
+1. Download `ClaudeTracker.zip` and unzip it
+2. Double-click `install.command` — it copies the app to `/Applications`, strips the Gatekeeper quarantine flag, and launches it
+
+> Because the app is not yet signed with a Developer ID certificate, macOS may block the first launch. If that happens, right-click the app and choose **Open**, or run `xattr -d com.apple.quarantine /Applications/ClaudeTracker.app`.
 
 ### Build from source
 
@@ -47,12 +54,21 @@ make run
 
 This builds, installs to `/Applications/`, and launches the app in one step.
 
-To package a distributable zip instead:
+To package distributable artifacts (DMG + ZIP):
 
 ```bash
 make release
-cd release/dist
-bash install.command
+# Outputs: release/ClaudeTracker.dmg and release/ClaudeTracker.zip
+```
+
+To sign and notarize (requires Apple Developer ID credentials):
+
+```bash
+make release \
+  SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+  APPLE_ID=you@example.com \
+  APPLE_PASSWORD=xxxx-xxxx-xxxx-xxxx \
+  APPLE_TEAM_ID=TEAMID
 ```
 
 ### First launch
@@ -74,12 +90,12 @@ Authentication is handled by the shared WKWebView cookie store. Signing in once 
 |---|---|
 | `ClaudeTrackerApp.swift` | App entry point, `MenuBarExtra` scene, composed menu bar image |
 | `ClaudeAPIService.swift` | Hidden `WKWebView` for API calls; login page loading and cookie polling |
-| `UsageViewModel.swift` | Published state, polling timer, UserDefaults persistence, notification dispatch |
-| `Models.swift` | Codable structs for API responses; `MenuBarWindow` display enum |
+| `UsageViewModel.swift` | Published state, polling timer, UserDefaults persistence, notification dispatch, update checker |
+| `Models.swift` | Codable structs for API responses; `MenuBarWindow` display enum; `UpdateInfo` |
 | `LoginView.swift` | `NSViewRepresentable` wrapping the API web view; `LoginWindowController` |
 | `ToastWindowController.swift` | Floating `NSPanel`-based toast, positioned near the top-right corner |
-| `MenuBarView.swift` | Popover content — progress bars, reset countdowns, extra usage |
-| `SettingsView.swift` | Account status, display picker, notification and refresh settings |
+| `MenuBarView.swift` | Popover content — scalable progress bars, reset countdowns, extra usage |
+| `SettingsView.swift` | Account status, update checker, popup scale, notification and refresh settings |
 
 ## Disclaimer
 
