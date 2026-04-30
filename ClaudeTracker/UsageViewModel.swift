@@ -23,6 +23,13 @@ final class UsageViewModel {
     var availableUpdate: UpdateInfo? = nil
     var isCheckingForUpdates = false
     var updateDownloadState: UpdateDownloadState = .idle
+    var autoUpdate: Bool = false {
+        didSet {
+            guard autoUpdate != oldValue else { return }
+            UserDefaults.standard.set(autoUpdate, forKey: "autoUpdate")
+            schedulePeriodicUpdateCheck()
+        }
+    }
     /// Which window's utilization the menu bar label tracks.
     var menuBarWindow: MenuBarWindow = .fiveHour {
         didSet {
@@ -115,6 +122,7 @@ final class UsageViewModel {
 
     @ObservationIgnored let apiService = ClaudeAPIService()
     @ObservationIgnored private var timer: AnyCancellable?
+    @ObservationIgnored private var updateCheckTimer: AnyCancellable?
     @ObservationIgnored private var appearanceCancellable: AnyCancellable?
     @ObservationIgnored private var debounceTask: Task<Void, Never>?
     @ObservationIgnored private var fetchTask: Task<Void, Never>?
@@ -187,8 +195,11 @@ final class UsageViewModel {
             usageHistory = decoded
         }
 
+        autoUpdate = UserDefaults.standard.object(forKey: "autoUpdate") as? Bool ?? false
+
         checkExistingSession()
         Task { try? await Task.sleep(for: .seconds(10)); checkForUpdates() }
+        schedulePeriodicUpdateCheck()
 
         appearanceCancellable = NSApp.publisher(for: \.effectiveAppearance)
             .dropFirst()
@@ -618,7 +629,32 @@ final class UsageViewModel {
                 let zipAsset = assets?.first { ($0["name"] as? String)?.hasSuffix(".zip") == true }
                 let downloadURL = (zipAsset?["browser_download_url"] as? String).flatMap(URL.init)
                 availableUpdate = UpdateInfo(version: remote, releaseURL: releaseUrl, downloadURL: downloadURL)
+                if autoUpdate, downloadURL != nil { triggerAutoInstall() }
             }
+        }
+    }
+
+    private func schedulePeriodicUpdateCheck() {
+        updateCheckTimer?.cancel()
+        updateCheckTimer = nil
+        guard autoUpdate else { return }
+        updateCheckTimer = Timer.publish(every: 24 * 3600, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in self?.checkForUpdates() }
+    }
+
+    private func triggerAutoInstall() {
+        guard let update = availableUpdate, update.downloadURL != nil else { return }
+        let msg = String(format: String(localized: "v%@ found — installing automatically…"), update.version)
+        ToastWindowController.shared.show(
+            title: String(localized: "Update available"),
+            message: msg,
+            duration: 8,
+            permanent: false
+        )
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            downloadAndInstall()
         }
     }
 
@@ -678,27 +714,27 @@ final class UsageViewModel {
                     }
                 }
 
-                if directOK {
-                    // Detached relaunch: wait for this process to exit, then open new version
-                    let script = "#!/bin/bash\nsleep 1.5\nopen /Applications/ClaudeTracker.app\n"
-                    let scriptURL = tmpBase.appendingPathComponent("relaunch.sh")
-                    try script.write(to: scriptURL, atomically: true, encoding: .utf8)
+                // Fail gracefully if copy was blocked (e.g. sandbox in signed dev builds).
+                // Never open install.command or terminate without a successful install.
+                guard directOK else { throw UpdateError.installationFailed }
+
+                // Relaunch: try a detached shell script first (works in unsigned release builds).
+                // Fall back to NSWorkspace.open when Process is sandbox-blocked.
+                let relaunchScript = "#!/bin/bash\nsleep 1.5\nopen \"/Applications/ClaudeTracker.app\"\n"
+                let scriptURL = tmpBase.appendingPathComponent("relaunch.sh")
+                var usedScript = false
+                if (try? relaunchScript.write(to: scriptURL, atomically: true, encoding: .utf8)) != nil {
                     let p = Process()
                     p.executableURL = URL(fileURLWithPath: "/bin/bash")
                     p.arguments = [scriptURL.path]
-                    try p.run()
-                    try await Task.sleep(for: .milliseconds(300))
-                    NSApp.terminate(nil)
-                } else {
-                    // Sandbox blocked direct copy — open install.command in Terminal
-                    let commandURL = extractDir.appendingPathComponent("install.command")
-                    guard FileManager.default.fileExists(atPath: commandURL.path) else {
-                        throw UpdateError.installationFailed
-                    }
-                    NSWorkspace.shared.open(commandURL)
-                    try await Task.sleep(for: .seconds(2))
-                    NSApp.terminate(nil)
+                    usedScript = (try? p.run()) != nil
                 }
+                try await Task.sleep(for: .milliseconds(300))
+                if !usedScript {
+                    NSWorkspace.shared.open(dest)
+                    try await Task.sleep(for: .milliseconds(500))
+                }
+                NSApp.terminate(nil)
             } catch {
                 updateDownloadState = .failed(error.localizedDescription)
             }
