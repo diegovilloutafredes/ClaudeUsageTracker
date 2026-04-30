@@ -420,6 +420,7 @@ private struct PopoverResizer: NSViewRepresentable {
 // MARK: - Chart Time Range
 
 private enum ChartTimeRange: String, CaseIterable {
+    case oneHour    = "1h"
     case fiveHours  = "5h"
     case oneDay     = "24h"
     case sevenDays  = "7d"
@@ -427,6 +428,7 @@ private enum ChartTimeRange: String, CaseIterable {
 
     var hours: Double {
         switch self {
+        case .oneHour:    return 1
         case .fiveHours:  return 5
         case .oneDay:     return 24
         case .sevenDays:  return 168
