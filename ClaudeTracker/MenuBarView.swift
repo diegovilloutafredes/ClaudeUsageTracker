@@ -208,7 +208,7 @@ struct MenuBarView: View {
         let xDomain = cutoff...now
         let visible = viewModel.usageHistory.filter { $0.timestamp >= cutoff }
 
-        VStack(alignment: .leading, spacing: 10 * s) {
+        VStack(alignment: .leading, spacing: 16 * s) {
             timeRangePicker
             if visible.isEmpty {
                 Text("No data for this period")
@@ -217,7 +217,7 @@ struct MenuBarView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 16 * s)
             } else {
-                VStack(alignment: .leading, spacing: 14 * s) {
+                VStack(alignment: .leading, spacing: 22 * s) {
                     windowCharts(title: "5-Hour", utilKeyPath: \.fiveHour, paceKeyPath: \.fiveHourPace, history: visible, xDomain: xDomain, selectedTime: $selectedTime)
                     Divider()
                     windowCharts(title: "7-Day", utilKeyPath: \.sevenDay, paceKeyPath: \.sevenDayPace, history: visible, xDomain: xDomain, selectedTime: $selectedTime)
@@ -257,7 +257,7 @@ struct MenuBarView: View {
         xDomain: ClosedRange<Date>,
         selectedTime: Binding<Date?>
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8 * s) {
+        VStack(alignment: .leading, spacing: 14 * s) {
             Text(LocalizedStringKey(title))
                 .font(sf(11, .semibold))
             miniChart(
@@ -299,18 +299,26 @@ struct MenuBarView: View {
         let xFormat: Date.FormatStyle = span < 25 * 3600
             ? .dateTime.hour().minute()
             : .dateTime.month(.abbreviated).day()
-        let hoveredValue: Double? = {
+        let hovered: (Date, Double)? = {
             guard let t = selectedTime.wrappedValue else { return nil }
             let pairs = filtered.compactMap { dp -> (Date, Double)? in
                 guard let v = dp[keyPath: keyPath] else { return nil }
                 return (dp.timestamp, v)
             }
-            return pairs.min(by: { abs($0.0.timeIntervalSince(t)) < abs($1.0.timeIntervalSince(t)) })?.1
+            return pairs.min(by: { abs($0.0.timeIntervalSince(t)) < abs($1.0.timeIntervalSince(t)) })
         }()
-        let displayValue = hoveredValue ?? (values.last ?? 0)
-        let nowLabel = hoveredValue != nil ? "@ \(formatLabel(displayValue))" : "now \(formatLabel(displayValue))"
+        let displayValue = hovered?.1 ?? (values.last ?? 0)
+        let nowLabel: String = {
+            if let (t, v) = hovered {
+                let timeStr = span < 25 * 3600
+                    ? t.formatted(.dateTime.hour().minute())
+                    : t.formatted(.dateTime.month(.abbreviated).day())
+                return "@ \(formatLabel(v))  \(timeStr)"
+            }
+            return "now \(formatLabel(displayValue))"
+        }()
 
-        VStack(alignment: .leading, spacing: 3 * s) {
+        VStack(alignment: .leading, spacing: 7 * s) {
             HStack {
                 Text(LocalizedStringKey(label))
                     .font(sf(10))
