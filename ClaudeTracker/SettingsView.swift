@@ -11,8 +11,8 @@ struct SettingsView: View {
         Form {
             accountSection
             displaySection
+            resetSection
             paceSection
-            notificationsSection
             refreshSection
         }
         .formStyle(.grouped)
@@ -193,10 +193,59 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Pace Alerts
+    // MARK: - Window Reset Notifications
+
+    private var resetSection: some View {
+        Section("Window Resets") {
+            Toggle("5-Hour window resets", isOn: $viewModel.notify5Hour)
+                .toggleStyle(GreenSwitchStyle())
+            Toggle("7-Day window resets", isOn: $viewModel.notify7Day)
+                .toggleStyle(GreenSwitchStyle())
+
+            Divider().listRowInsets(EdgeInsets())
+
+            Toggle("Toast near menu bar", isOn: $viewModel.notifyToast)
+                .toggleStyle(GreenSwitchStyle())
+
+            if viewModel.notifyToast {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Text("Duration")
+                            .font(.callout)
+                            .foregroundStyle(viewModel.toastPermanent ? .tertiary : .secondary)
+                        Slider(value: $viewModel.toastDuration, in: 1...30, step: 1)
+                            .disabled(viewModel.toastPermanent)
+                        Text(viewModel.toastPermanent ? "∞" : "\(Int(viewModel.toastDuration))s")
+                            .font(.callout.monospacedDigit())
+                            .foregroundStyle(viewModel.toastPermanent ? .tertiary : .secondary)
+                            .frame(width: 28, alignment: .trailing)
+                    }
+                    Toggle("Stay until dismissed", isOn: $viewModel.toastPermanent)
+                        .font(.callout)
+                        .toggleStyle(GreenSwitchStyle())
+                }
+                .padding(.leading, 20)
+            }
+
+            Toggle("Sound (Hero)", isOn: $viewModel.resetSoundEnabled)
+                .toggleStyle(GreenSwitchStyle())
+
+            Divider().listRowInsets(EdgeInsets())
+
+            HStack(spacing: 10) {
+                Button("Test") { viewModel.sendTestNotification() }
+                    .disabled(!viewModel.notifyToast && !viewModel.resetSoundEnabled)
+                Text("Simulates a window reset through all enabled channels")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    // MARK: - Pace Alert Notifications
 
     private var paceSection: some View {
-        Section {
+        Section("Pace Alerts") {
             Toggle("Notify when approaching limit", isOn: $viewModel.notifyPace)
                 .toggleStyle(GreenSwitchStyle())
 
@@ -212,10 +261,15 @@ struct SettingsView: View {
                         .frame(width: 32, alignment: .trailing)
                 }
 
-                if viewModel.notifyToast {
+                Divider().listRowInsets(EdgeInsets())
+
+                Toggle("Toast near menu bar", isOn: $viewModel.paceToastEnabled)
+                    .toggleStyle(GreenSwitchStyle())
+
+                if viewModel.paceToastEnabled {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 8) {
-                            Text("Toast duration")
+                            Text("Duration")
                                 .font(.callout)
                                 .foregroundStyle(viewModel.paceToastPermanent ? .tertiary : .secondary)
                             Slider(value: $viewModel.paceToastDuration, in: 1...30, step: 1)
@@ -231,71 +285,25 @@ struct SettingsView: View {
                     }
                     .padding(.leading, 20)
                 }
+
+                Toggle("Sound (Basso)", isOn: $viewModel.paceSoundEnabled)
+                    .toggleStyle(GreenSwitchStyle())
+
+                Divider().listRowInsets(EdgeInsets())
+
+                HStack(spacing: 10) {
+                    Button("Test") { viewModel.sendTestPaceNotification() }
+                        .disabled(!viewModel.paceToastEnabled && !viewModel.paceSoundEnabled)
+                    Text("Simulates a pace alert through all enabled channels")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            Text("Alert when a watched window is projected to fill before it resets, based on your current consumption rate.")
+            Text("Fires when a watched window is projected to fill before it resets, based on your current consumption rate.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-        } header: {
-            Text("Pace Alerts")
-        }
-    }
-
-    // MARK: - Notifications
-
-    private var notificationsSection: some View {
-        Section("Window Reset Notifications") {
-            Group {
-                Toggle("5-Hour window resets", isOn: $viewModel.notify5Hour)
-                    .toggleStyle(GreenSwitchStyle())
-                Toggle("7-Day window resets",  isOn: $viewModel.notify7Day)
-                    .toggleStyle(GreenSwitchStyle())
-            }
-
-            Divider()
-                .listRowInsets(EdgeInsets())
-
-            Group {
-                Toggle("Toast near menu bar", isOn: $viewModel.notifyToast)
-                    .toggleStyle(GreenSwitchStyle())
-
-                if viewModel.notifyToast {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 8) {
-                            Text("Duration")
-                                .font(.callout)
-                                .foregroundStyle(viewModel.toastPermanent ? .tertiary : .secondary)
-                            Slider(value: $viewModel.toastDuration, in: 1...30, step: 1)
-                                .disabled(viewModel.toastPermanent)
-                            Text(viewModel.toastPermanent ? "∞" : "\(Int(viewModel.toastDuration))s")
-                                .font(.callout.monospacedDigit())
-                                .foregroundStyle(viewModel.toastPermanent ? .tertiary : .secondary)
-                                .frame(width: 28, alignment: .trailing)
-                        }
-                        Toggle("Stay until dismissed", isOn: $viewModel.toastPermanent)
-                            .font(.callout)
-                            .toggleStyle(GreenSwitchStyle())
-                    }
-                    .padding(.leading, 20)
-                }
-
-                Toggle("Sound",                      isOn: $viewModel.notifySound)
-                    .toggleStyle(GreenSwitchStyle())
-                Toggle("System notification banner", isOn: $viewModel.notifyBanner)
-                    .toggleStyle(GreenSwitchStyle())
-            }
-
-            Divider()
-                .listRowInsets(EdgeInsets())
-
-            HStack(spacing: 10) {
-                Button("Test") { viewModel.sendTestNotification() }
-                    .disabled(!viewModel.notifyToast && !viewModel.notifySound && !viewModel.notifyBanner)
-                Text("Fires all enabled channels with a simulated reset")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 

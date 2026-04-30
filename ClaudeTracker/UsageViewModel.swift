@@ -2,27 +2,12 @@ import SwiftUI
 import AppKit
 import Combine
 import WebKit
-import UserNotifications
 
 enum UpdateDownloadState {
     case idle
     case downloading
     case installing
     case failed(String)
-}
-
-/// Separate `NSObject` subclass required because `UNUserNotificationCenterDelegate` expects an
-/// `NSObject`, and assigning `self` (a `@MainActor` class) as the delegate from a non-isolated
-/// context produces a Swift concurrency compiler error.
-private final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
-    func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification,
-        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
-    ) {
-        // Show the banner even when the app is frontmost; audio is handled separately by NSSound.
-        completionHandler([.banner, .list])
-    }
 }
 
 /// Central state for the app — owns API polling, UserDefaults persistence, and notification dispatch.
@@ -60,22 +45,31 @@ final class UsageViewModel {
     var notify7Day: Bool = false {
         didSet { guard notify7Day != oldValue else { return }; UserDefaults.standard.set(notify7Day, forKey: "notify7Day") }
     }
-    /// Stored under the key `"notifyOnReset"` in `UserDefaults` for backwards compatibility
-    /// with installations that had the earlier single-toggle banner preference.
-    var notifyBanner: Bool = true {
-        didSet { guard notifyBanner != oldValue else { return }; UserDefaults.standard.set(notifyBanner, forKey: "notifyOnReset") }
-    }
     var notifyToast: Bool = true {
         didSet { guard notifyToast != oldValue else { return }; UserDefaults.standard.set(notifyToast, forKey: "notifyToast") }
     }
-    var notifySound: Bool = true {
-        didSet { guard notifySound != oldValue else { return }; UserDefaults.standard.set(notifySound, forKey: "notifySound") }
+    var resetSoundEnabled: Bool = false {
+        didSet {
+            guard resetSoundEnabled != oldValue else { return }
+            UserDefaults.standard.set(resetSoundEnabled, forKey: "notifySound")
+            if resetSoundEnabled { NSSound(named: .init("Hero"))?.play() }
+        }
     }
     var toastDuration: Double = 3.0 {
         didSet { guard toastDuration != oldValue else { return }; UserDefaults.standard.set(toastDuration, forKey: "toastDuration") }
     }
     var toastPermanent: Bool = false {
         didSet { guard toastPermanent != oldValue else { return }; UserDefaults.standard.set(toastPermanent, forKey: "toastPermanent") }
+    }
+    var paceToastEnabled: Bool = false {
+        didSet { guard paceToastEnabled != oldValue else { return }; UserDefaults.standard.set(paceToastEnabled, forKey: "paceToastEnabled") }
+    }
+    var paceSoundEnabled: Bool = false {
+        didSet {
+            guard paceSoundEnabled != oldValue else { return }
+            UserDefaults.standard.set(paceSoundEnabled, forKey: "paceSoundEnabled")
+            if paceSoundEnabled { NSSound(named: .init("Basso"))?.play() }
+        }
     }
 
     /// Whether the pace line is shown inside each window row in the popover.
@@ -132,7 +126,6 @@ final class UsageViewModel {
     /// Avoids rebuilding `menuBarImage` when neither the icon name nor the status text has changed.
     private var cachedMenuBarKey = ""
     private var cachedMenuBarImage = NSImage()
-    @ObservationIgnored private let notificationDelegate = NotificationDelegate()
     /// Rolling utilization history per window key, used to compute consumption pace.
     private var utilizationHistory: [String: [(Date, Double)]] = [:]
     /// Window keys for which a pace alert has already fired in the current window period.
@@ -161,21 +154,22 @@ final class UsageViewModel {
             UserDefaults.standard.set(2, forKey: "notificationDefaultsVersion")
         }
 
-        notifyBanner  = UserDefaults.standard.object(forKey: "notifyOnReset")   as? Bool   ?? false
-        notifySound   = UserDefaults.standard.object(forKey: "notifySound")    as? Bool   ?? false
-        notifyToast   = UserDefaults.standard.object(forKey: "notifyToast")    as? Bool   ?? true
-        notify5Hour   = UserDefaults.standard.object(forKey: "notify5Hour")    as? Bool   ?? true
-        notify7Day    = UserDefaults.standard.object(forKey: "notify7Day")     as? Bool   ?? false
+        resetSoundEnabled = UserDefaults.standard.object(forKey: "notifySound")       as? Bool ?? false
+        notifyToast       = UserDefaults.standard.object(forKey: "notifyToast")       as? Bool ?? true
+        notify5Hour       = UserDefaults.standard.object(forKey: "notify5Hour")       as? Bool ?? true
+        notify7Day        = UserDefaults.standard.object(forKey: "notify7Day")        as? Bool ?? false
         let savedDuration = UserDefaults.standard.double(forKey: "toastDuration")
-        toastDuration = savedDuration > 0 ? savedDuration : 3.0
-        toastPermanent = UserDefaults.standard.object(forKey: "toastPermanent") as? Bool ?? false
-        showPace       = UserDefaults.standard.object(forKey: "showPace")       as? Bool   ?? true
-        notifyPace     = UserDefaults.standard.object(forKey: "notifyPace")     as? Bool   ?? false
+        toastDuration  = savedDuration > 0 ? savedDuration : 3.0
+        toastPermanent = UserDefaults.standard.object(forKey: "toastPermanent")       as? Bool ?? false
+        showPace       = UserDefaults.standard.object(forKey: "showPace")             as? Bool ?? true
+        notifyPace     = UserDefaults.standard.object(forKey: "notifyPace")           as? Bool ?? false
         let savedWarning = UserDefaults.standard.double(forKey: "paceWarningMinutes")
         paceWarningMinutes = savedWarning > 0 ? savedWarning : 30
+        paceToastEnabled   = UserDefaults.standard.object(forKey: "paceToastEnabled") as? Bool ?? false
         let savedPaceDuration = UserDefaults.standard.double(forKey: "paceToastDuration")
         paceToastDuration  = savedPaceDuration > 0 ? savedPaceDuration : 5.0
         paceToastPermanent = UserDefaults.standard.object(forKey: "paceToastPermanent") as? Bool ?? false
+        paceSoundEnabled   = UserDefaults.standard.object(forKey: "paceSoundEnabled") as? Bool ?? false
         let savedHistory = UserDefaults.standard.double(forKey: "paceHistoryMinutes")
         paceHistoryMinutes = savedHistory > 0 ? savedHistory : 15
         // v1: rebase — old 1.0 was the original size; new 1.0 matches old 1.1 (base constants grew ×1.1).
@@ -193,8 +187,6 @@ final class UsageViewModel {
             usageHistory = decoded
         }
 
-        UNUserNotificationCenter.current().delegate = notificationDelegate
-        requestNotificationPermission()
         checkExistingSession()
         Task { try? await Task.sleep(for: .seconds(10)); checkForUpdates() }
 
@@ -435,7 +427,7 @@ final class UsageViewModel {
             return
         }
 
-        guard notifyBanner || notifySound || notifyToast else {
+        guard resetSoundEnabled || notifyToast else {
             recordResetsAt(new)
             return
         }
@@ -478,33 +470,22 @@ final class UsageViewModel {
         let title = String(localized: "Claude Usage Reset")
         let body  = String(format: String(localized: "%@ reset — you're good to go!"), windows.joined(separator: " & "))
 
-        if notifyToast  { ToastWindowController.shared.show(title: title, message: body, duration: toastDuration, permanent: toastPermanent) }
-        if notifySound  { NSSound(named: NSSound.Name("Glass"))?.play() }
-        if notifyBanner { sendBannerNotification(title: title, body: body) }
+        if notifyToast       { ToastWindowController.shared.show(title: title, message: body, duration: toastDuration, permanent: toastPermanent) }
+        if resetSoundEnabled { NSSound(named: .init("Hero"))?.play() }
     }
 
-    /// Triggers a test notification through all currently enabled channels using a simulated reset.
+    /// Triggers a test reset notification through all currently enabled channels.
     func sendTestNotification() {
         dispatchNotifications(windows: [String(localized: "5-Hour Window")])
     }
 
-    private func sendBannerNotification(title: String, body: String) {
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body  = body
-        // Sound is omitted here; NSSound handles audio independently to prevent double-play
-        // when both the sound and banner channels are enabled simultaneously.
-
-        let request = UNNotificationRequest(
-            identifier: "usage-reset-\(Date().timeIntervalSince1970)",
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request)
-    }
-
-    private func requestNotificationPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
+    /// Triggers a test pace notification through all currently enabled pace channels.
+    func sendTestPaceNotification() {
+        let title = String(localized: "Approaching usage limit")
+        let body  = String(format: String(localized: "%@ fills in %d min at %.1f%%/hr"),
+                           String(localized: "5-Hour Window"), 25, 45.0)
+        if paceToastEnabled { ToastWindowController.shared.show(title: title, message: body, icon: "exclamationmark.triangle.fill", iconColor: .orange, duration: paceToastDuration, permanent: paceToastPermanent) }
+        if paceSoundEnabled { NSSound(named: .init("Basso"))?.play() }
     }
 
     // MARK: - Private
@@ -570,9 +551,8 @@ final class UsageViewModel {
                 let minsLeft = max(1, Int(projHours * 60))
                 let title = String(localized: "Approaching usage limit")
                 let body  = String(format: String(localized: "%@ fills in %d min at %.1f%%/hr"), name, minsLeft, pd.rate)
-                if notifyToast  { paceToastIDs[key] = ToastWindowController.shared.show(title: title, message: body, icon: "exclamationmark.triangle.fill", iconColor: .orange, duration: paceToastDuration, permanent: paceToastPermanent) }
-                if notifySound  { NSSound(named: NSSound.Name("Glass"))?.play() }
-                if notifyBanner { sendBannerNotification(title: title, body: body) }
+                if paceToastEnabled { paceToastIDs[key] = ToastWindowController.shared.show(title: title, message: body, icon: "exclamationmark.triangle.fill", iconColor: .orange, duration: paceToastDuration, permanent: paceToastPermanent) }
+                if paceSoundEnabled { NSSound(named: .init("Basso"))?.play() }
             } else if !isConcerning, paceWarned.contains(key) {
                 // Pace improved past the threshold — dismiss the alert even if set to permanent.
                 if let tid = paceToastIDs.removeValue(forKey: key) {

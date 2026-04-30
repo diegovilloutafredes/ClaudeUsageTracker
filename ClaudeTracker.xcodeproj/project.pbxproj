@@ -17,6 +17,7 @@
 		AA0000000000000000000008 /* ToastWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000011 /* ToastWindowController.swift */; };
 		AA0000000000000000000009 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000012 /* Localizable.xcstrings */; };
 		AA0000000000000000000010 /* ClaudeTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000014 /* ClaudeTrackerTests.swift */; };
+		AA0000000000000000000011 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000015 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -44,6 +45,7 @@
 		BB0000000000000000000012 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		BB0000000000000000000013 /* ClaudeTrackerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClaudeTrackerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB0000000000000000000014 /* ClaudeTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeTrackerTests.swift; sourceTree = "<group>"; };
+		BB0000000000000000000015 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXResourcesBuildPhase section */
@@ -52,6 +54,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA0000000000000000000009 /* Localizable.xcstrings in Resources */,
+				AA0000000000000000000011 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -96,6 +99,7 @@
 				BB0000000000000000000010 /* LoginView.swift */,
 				BB0000000000000000000011 /* ToastWindowController.swift */,
 				BB0000000000000000000012 /* Localizable.xcstrings */,
+				BB0000000000000000000015 /* Assets.xcassets */,
 				BB0000000000000000000007 /* Info.plist */,
 				BB0000000000000000000008 /* ClaudeTracker.entitlements */,
 			);
@@ -275,6 +279,7 @@
 		II0000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = ClaudeTracker/ClaudeTracker.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
@@ -296,6 +301,7 @@
 		II0000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = ClaudeTracker/ClaudeTracker.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
