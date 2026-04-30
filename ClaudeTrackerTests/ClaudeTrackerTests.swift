@@ -126,8 +126,8 @@ final class ClaudeTrackerTests: XCTestCase {
 
     func testPaceNilWhenElapsedTooShort() {
         let now = Date()
-        // 20 seconds elapsed — below the 30s minimum
-        let history = [(now.addingTimeInterval(-20), 10.0), (now, 11.0)]
+        // 10 seconds elapsed — below the 15s minimum
+        let history = [(now.addingTimeInterval(-10), 10.0), (now, 11.0)]
         XCTAssertNil(computePace(history: history))
     }
 
