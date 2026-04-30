@@ -178,6 +178,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .font(.callout)
                     Picker("", selection: $viewModel.paceHistoryMinutes) {
+                        Text("30s").tag(0.5)
                         Text("1m").tag(1.0)
                         Text("5m").tag(5.0)
                         Text("10m").tag(10.0)

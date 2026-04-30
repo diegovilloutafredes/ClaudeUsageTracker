@@ -16,15 +16,38 @@ func isNewerVersion(_ remote: String, than current: String) -> Bool {
 
 /// Computes consumption rate and projected time-to-full from a utilization history.
 ///
-/// Requires at least 30 seconds of elapsed history between the first and last entry.
-/// Returns `nil` when the rate is negligible (≤ 0.1 %/hr) or data is insufficient.
+/// Uses exponentially-weighted linear regression over all history points so that
+/// recent consumption dominates the slope. Weight w_i = exp(λ · t_norm) where
+/// t_norm ∈ [0,1] runs from oldest to newest; λ=2 gives the newest point ~7× the
+/// weight of the oldest. This reacts to recent bursts faster than a simple
+/// first-to-last slope while remaining more stable than a very short endpoint window.
+///
+/// Requires at least 15 seconds of elapsed history and 2 data points.
+/// Returns nil when the rate is negligible (≤ 0.1 %/hr) or data is insufficient.
 func computePace(history: [(Date, Double)]) -> (rate: Double, projectedHours: Double?)? {
     guard history.count >= 2 else { return nil }
     let oldest = history.first!
     let newest = history.last!
-    let elapsed = newest.0.timeIntervalSince(oldest.0) / 3600.0
-    guard elapsed >= (30.0 / 3600.0) else { return nil }
-    let rate = (newest.1 - oldest.1) / elapsed
+    let elapsedSeconds = newest.0.timeIntervalSince(oldest.0)
+    guard elapsedSeconds >= 15.0 else { return nil }
+
+    let λ = 2.0
+    var W = 0.0, Sx = 0.0, Sy = 0.0, Sxx = 0.0, Sxy = 0.0
+    for (date, util) in history {
+        let xi   = date.timeIntervalSince(oldest.0) / 3600.0   // hours from oldest
+        let norm = date.timeIntervalSince(oldest.0) / elapsedSeconds  // [0, 1]
+        let wi   = exp(λ * norm)
+        W   += wi
+        Sx  += wi * xi
+        Sy  += wi * util
+        Sxx += wi * xi * xi
+        Sxy += wi * xi * util
+    }
+
+    let denom = W * Sxx - Sx * Sx
+    guard abs(denom) > 1e-12 else { return nil }
+    let rate = (W * Sxy - Sx * Sy) / denom  // %/hr
+
     guard rate > 0.1 else { return nil }
     let remaining = 100.0 - newest.1
     let projectedHours: Double? = remaining > 0 ? remaining / rate : nil

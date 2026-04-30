@@ -199,6 +199,7 @@ struct MenuBarView: View {
     // MARK: - Charts
 
     @AppStorage("chartTimeRange") private var chartTimeRange: ChartTimeRange = .oneDay
+    @State private var selectedTime: Date?
 
     @ViewBuilder
     private var chartsContent: some View {
@@ -217,9 +218,9 @@ struct MenuBarView: View {
                     .padding(.vertical, 16 * s)
             } else {
                 VStack(alignment: .leading, spacing: 14 * s) {
-                    windowCharts(title: "5-Hour", utilKeyPath: \.fiveHour, paceKeyPath: \.fiveHourPace, history: visible, xDomain: xDomain)
+                    windowCharts(title: "5-Hour", utilKeyPath: \.fiveHour, paceKeyPath: \.fiveHourPace, history: visible, xDomain: xDomain, selectedTime: $selectedTime)
                     Divider()
-                    windowCharts(title: "7-Day", utilKeyPath: \.sevenDay, paceKeyPath: \.sevenDayPace, history: visible, xDomain: xDomain)
+                    windowCharts(title: "7-Day", utilKeyPath: \.sevenDay, paceKeyPath: \.sevenDayPace, history: visible, xDomain: xDomain, selectedTime: $selectedTime)
                 }
             }
         }
@@ -253,27 +254,28 @@ struct MenuBarView: View {
         utilKeyPath: KeyPath<UsageDataPoint, Double?>,
         paceKeyPath: KeyPath<UsageDataPoint, Double?>,
         history: [UsageDataPoint],
-        xDomain: ClosedRange<Date>
+        xDomain: ClosedRange<Date>,
+        selectedTime: Binding<Date?>
     ) -> some View {
         VStack(alignment: .leading, spacing: 8 * s) {
             Text(LocalizedStringKey(title))
                 .font(sf(11, .semibold))
             miniChart(
                 label: "Utilization",
-                isUtilization: true,
                 filtered: history,
                 keyPath: utilKeyPath,
                 domain: 0...100,
                 xDomain: xDomain,
+                selectedTime: selectedTime,
                 formatLabel: { "\(Int($0))%" }
             )
             miniChart(
                 label: "Pace",
-                isUtilization: false,
                 filtered: history,
                 keyPath: paceKeyPath,
                 domain: nil,
                 xDomain: xDomain,
+                selectedTime: selectedTime,
                 formatLabel: { String(format: "%.1f%%/hr", $0) }
             )
         }
@@ -282,23 +284,31 @@ struct MenuBarView: View {
     @ViewBuilder
     private func miniChart(
         label: String,
-        isUtilization: Bool,
         filtered: [UsageDataPoint],
         keyPath: KeyPath<UsageDataPoint, Double?>,
         domain: ClosedRange<Double>?,
         xDomain: ClosedRange<Date>,
+        selectedTime: Binding<Date?>,
         formatLabel: @escaping (Double) -> String
     ) -> some View {
         let values: [Double] = filtered.compactMap { $0[keyPath: keyPath] }
         let peak = values.max() ?? 0
         let avg = values.isEmpty ? 0.0 : values.reduce(0, +) / Double(values.count)
-        let color: Color = isUtilization
-            ? urgencyColor((values.last ?? 0) / 100.0)
-            : Color.blue
+        let color: Color = urgencyColor(min((values.last ?? 0) / 100.0, 1.0))
         let span = xDomain.upperBound.timeIntervalSince(xDomain.lowerBound)
         let xFormat: Date.FormatStyle = span < 25 * 3600
             ? .dateTime.hour().minute()
             : .dateTime.month(.abbreviated).day()
+        let hoveredValue: Double? = {
+            guard let t = selectedTime.wrappedValue else { return nil }
+            let pairs = filtered.compactMap { dp -> (Date, Double)? in
+                guard let v = dp[keyPath: keyPath] else { return nil }
+                return (dp.timestamp, v)
+            }
+            return pairs.min(by: { abs($0.0.timeIntervalSince(t)) < abs($1.0.timeIntervalSince(t)) })?.1
+        }()
+        let displayValue = hoveredValue ?? (values.last ?? 0)
+        let nowLabel = hoveredValue != nil ? "@ \(formatLabel(displayValue))" : "now \(formatLabel(displayValue))"
 
         VStack(alignment: .leading, spacing: 3 * s) {
             HStack {
@@ -307,7 +317,7 @@ struct MenuBarView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 if !values.isEmpty {
-                    Text("pk \(formatLabel(peak))  avg \(formatLabel(avg.rounded()))")
+                    Text("\(nowLabel)  pk \(formatLabel(peak))  avg \(formatLabel(avg.rounded()))")
                         .font(sf(9))
                         .foregroundStyle(.secondary)
                 }
@@ -319,21 +329,28 @@ struct MenuBarView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .frame(height: 50 * s)
             } else {
-                Chart(filtered) { dp in
-                    if let v = dp[keyPath: keyPath] {
-                        AreaMark(
-                            x: .value("Time", dp.timestamp),
-                            y: .value(label, v)
-                        )
-                        .foregroundStyle(color.opacity(0.15))
-                        .interpolationMethod(.monotone)
-                        LineMark(
-                            x: .value("Time", dp.timestamp),
-                            y: .value(label, v)
-                        )
-                        .foregroundStyle(color)
-                        .lineStyle(StrokeStyle(lineWidth: 1.5))
-                        .interpolationMethod(.monotone)
+                Chart {
+                    ForEach(filtered) { dp in
+                        if let v = dp[keyPath: keyPath] {
+                            AreaMark(
+                                x: .value("Time", dp.timestamp),
+                                y: .value(label, v)
+                            )
+                            .foregroundStyle(color.opacity(0.15))
+                            .interpolationMethod(.monotone)
+                            LineMark(
+                                x: .value("Time", dp.timestamp),
+                                y: .value(label, v)
+                            )
+                            .foregroundStyle(color)
+                            .lineStyle(StrokeStyle(lineWidth: 1.5))
+                            .interpolationMethod(.monotone)
+                        }
+                    }
+                    if let t = selectedTime.wrappedValue, xDomain.contains(t) {
+                        RuleMark(x: .value("Selected", t))
+                            .foregroundStyle(Color.secondary.opacity(0.5))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                     }
                 }
                 .chartYScale(domain: domain ?? (0...max(values.max().map { $0 * 1.2 } ?? 1, 1)))
@@ -358,6 +375,25 @@ struct MenuBarView: View {
                     }
                 }
                 .frame(height: 60 * s)
+                .chartOverlay { proxy in
+                    GeometryReader { geo in
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onContinuousHover { phase in
+                                switch phase {
+                                case .active(let location):
+                                    guard let plotFrame = proxy.plotFrame else { return }
+                                    let frame = geo[plotFrame]
+                                    let x = location.x - frame.origin.x
+                                    if let date = proxy.value(atX: x, as: Date.self) {
+                                        selectedTime.wrappedValue = date
+                                    }
+                                case .ended:
+                                    selectedTime.wrappedValue = nil
+                                }
+                            }
+                    }
+                }
             }
         }
     }
