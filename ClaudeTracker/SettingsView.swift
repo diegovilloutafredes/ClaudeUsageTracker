@@ -76,6 +76,9 @@ struct SettingsView: View {
 
             updateRow
 
+            Toggle("Auto-install updates", isOn: $viewModel.autoUpdate)
+                .toggleStyle(GreenSwitchStyle())
+
             Text("Unofficial tool — not affiliated with or endorsed by Anthropic. May break if Anthropic changes their web API.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
