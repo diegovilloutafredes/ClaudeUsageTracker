@@ -17,6 +17,9 @@ struct MenuBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 17 * s) {
             header
+            if let update = viewModel.availableUpdate {
+                updateBanner(update)
+            }
             if viewModel.isAuthenticated && viewModel.showChartsTab {
                 tabSelector
             }
@@ -40,6 +43,50 @@ struct MenuBarView: View {
         .onChange(of: viewModel.showChartsTab) { _, enabled in
             if !enabled { selectedTab = 0 }
         }
+    }
+
+    // MARK: - Update Banner
+
+    @ViewBuilder
+    private func updateBanner(_ update: UpdateInfo) -> some View {
+        HStack(spacing: 8 * s) {
+            Image(systemName: "arrow.up.circle.fill")
+                .foregroundStyle(.green)
+                .font(sf(13))
+                .accessibilityHidden(true)
+            Text("v\(update.version) available")
+                .font(sf(11, .semibold))
+            Spacer()
+            Group {
+                switch viewModel.updateDownloadState {
+                case .idle:
+                    if update.downloadURL != nil {
+                        Button("Install") { viewModel.downloadAndInstall() }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .tint(.green)
+                    } else {
+                        Link("Download", destination: update.releaseURL)
+                    }
+                case .downloading:
+                    HStack(spacing: 4 * s) {
+                        ProgressView().controlSize(.small)
+                        Text("Downloading…").foregroundStyle(.secondary)
+                    }
+                case .installing:
+                    HStack(spacing: 4 * s) {
+                        ProgressView().controlSize(.small)
+                        Text("Installing…").foregroundStyle(.secondary)
+                    }
+                case .failed:
+                    Link("Download", destination: update.releaseURL)
+                }
+            }
+            .font(sf(11))
+        }
+        .padding(.horizontal, 10 * s)
+        .padding(.vertical, 7 * s)
+        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8 * s))
     }
 
     // MARK: - Header

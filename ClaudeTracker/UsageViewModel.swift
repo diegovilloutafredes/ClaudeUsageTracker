@@ -128,6 +128,7 @@ final class UsageViewModel {
     @ObservationIgnored private var debounceTask: Task<Void, Never>?
     @ObservationIgnored private var fetchTask: Task<Void, Never>?
     @ObservationIgnored private var wakeObserver: NSObjectProtocol?
+    @ObservationIgnored private var lastNotifiedUpdateVersion: String = ""
     /// Adaptive check interval (seconds), computed from release cadence. Clamped 4h–24h.
     private var nextCheckInterval: TimeInterval = 12 * 3600
 
@@ -206,6 +207,7 @@ final class UsageViewModel {
         }
 
         autoUpdate = UserDefaults.standard.object(forKey: "autoUpdate") as? Bool ?? false
+        lastNotifiedUpdateVersion = UserDefaults.standard.string(forKey: "lastNotifiedUpdateVersion") ?? ""
 
         let savedCheckInterval = UserDefaults.standard.double(forKey: "updateCheckInterval")
         if savedCheckInterval >= 4 * 3600 { nextCheckInterval = savedCheckInterval }
@@ -674,8 +676,23 @@ final class UsageViewModel {
                 let zipAsset = assets?.first { ($0["name"] as? String)?.hasSuffix(".zip") == true }
                 let downloadURL = (zipAsset?["browser_download_url"] as? String).flatMap(URL.init)
                 availableUpdate = UpdateInfo(version: remote, releaseURL: releaseUrl, downloadURL: downloadURL)
-                if autoUpdate, downloadURL != nil {
-                    if case .idle = updateDownloadState { triggerAutoInstall() }
+
+                // Only notify once per discovered version (persisted across restarts)
+                if lastNotifiedUpdateVersion != remote {
+                    lastNotifiedUpdateVersion = remote
+                    UserDefaults.standard.set(remote, forKey: "lastNotifiedUpdateVersion")
+                    if autoUpdate, downloadURL != nil {
+                        if case .idle = updateDownloadState { triggerAutoInstall() }
+                    } else {
+                        ToastWindowController.shared.show(
+                            title: String(localized: "Update available"),
+                            message: String(format: String(localized: "v%@ is ready — open Settings to install"), remote),
+                            icon: "arrow.up.circle.fill",
+                            iconColor: .green,
+                            duration: 12,
+                            permanent: false
+                        )
+                    }
                 }
             }
 
@@ -719,15 +736,17 @@ final class UsageViewModel {
 
     private func triggerAutoInstall() {
         guard let update = availableUpdate, update.downloadURL != nil else { return }
-        let msg = String(format: String(localized: "v%@ found — installing automatically…"), update.version)
+        let msg = String(format: String(localized: "v%@ found — installing in ~10s"), update.version)
         ToastWindowController.shared.show(
             title: String(localized: "Update available"),
             message: msg,
-            duration: 8,
+            icon: "arrow.down.circle.fill",
+            iconColor: .green,
+            duration: 12,
             permanent: false
         )
         Task {
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(10))
             downloadAndInstall()
         }
     }
