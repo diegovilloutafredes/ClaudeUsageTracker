@@ -539,7 +539,11 @@ final class UsageViewModel {
         let title = String(localized: "Approaching usage limit")
         let body  = String(format: String(localized: "%@ fills in %d min at %.1f%%/hr"),
                            String(localized: "5-Hour Window"), 25, 45.0)
-        if paceToastEnabled { ToastWindowController.shared.show(title: title, message: body, icon: "exclamationmark.triangle.fill", iconColor: .orange, duration: paceToastDuration, permanent: paceToastPermanent) }
+        if paceToastEnabled {
+            ToastWindowController.shared.show(title: title, message: body,
+                icon: "exclamationmark.triangle.fill", iconColor: .orange,
+                duration: paceToastDuration, permanent: paceToastPermanent)
+        }
         if paceSoundEnabled { NSSound(named: .init("Basso"))?.play() }
     }
 
@@ -606,7 +610,11 @@ final class UsageViewModel {
                 let minsLeft = max(1, Int(projHours * 60))
                 let title = String(localized: "Approaching usage limit")
                 let body  = String(format: String(localized: "%@ fills in %d min at %.1f%%/hr"), name, minsLeft, pd.rate)
-                if paceToastEnabled { paceToastIDs[key] = ToastWindowController.shared.show(title: title, message: body, icon: "exclamationmark.triangle.fill", iconColor: .orange, duration: paceToastDuration, permanent: paceToastPermanent) }
+                if paceToastEnabled {
+                    paceToastIDs[key] = ToastWindowController.shared.show(title: title, message: body,
+                        icon: "exclamationmark.triangle.fill", iconColor: .orange,
+                        duration: paceToastDuration, permanent: paceToastPermanent)
+                }
                 if paceSoundEnabled { NSSound(named: .init("Basso"))?.play() }
             } else if !isConcerning, paceWarned.contains(key) {
                 // Pace improved past the threshold — dismiss the alert even if set to permanent.

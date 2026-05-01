@@ -1,0 +1,38 @@
+included:
+  - ClaudeTracker
+  - ClaudeTrackerTests
+
+excluded:
+  - release
+
+disabled_rules:
+  - identifier_name          # math notation (λ, Sxx, xi) and layout shorthands used throughout
+  - opening_brace            # column-alignment spacing triggers false positives
+  - comma                    # column-alignment spacing triggers false positives
+  - implicit_optional_initialization  # explicit = nil is clear and intentional
+  - large_tuple              # used sparingly, not worth the noise
+  - trailing_comma           # intentional trailing commas in multi-line SwiftUI literals
+  - function_parameter_count # SwiftUI view-builder functions legitimately exceed 5 params
+
+# Structural limits tuned for single-file architecture
+file_length:
+  warning: 1000
+  error: 1200
+
+type_body_length:
+  warning: 700
+  error: 900
+
+function_body_length:
+  warning: 120
+  error: 160
+
+cyclomatic_complexity:
+  warning: 15
+  error: 25
+
+line_length:
+  warning: 170
+  error: 250
+  ignores_comments: true
+  ignores_urls: true

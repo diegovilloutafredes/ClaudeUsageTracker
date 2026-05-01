@@ -47,6 +47,10 @@ jobs:
           security list-keychains -d user -s $KEYCHAIN
           rm $RUNNER_TEMP/cert.p12
 
+      # ── Lint ────────────────────────────────────────────────────────────────
+      - name: Lint
+        run: make lint
+
       # ── Build ───────────────────────────────────────────────────────────────
       - name: Build (signed)
         if: steps.caps.outputs.sign == 'true'

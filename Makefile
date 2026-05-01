@@ -21,7 +21,7 @@ APPLE_TEAM_ID  ?=
 # CI override: make build SIGNING_FLAGS="CODE_SIGNING_ALLOWED=NO"
 SIGNING_FLAGS ?= CODE_SIGN_IDENTITY="-"
 
-.PHONY: release build test run clean tag dmg zip sign notarize staple
+.PHONY: release build test lint run clean tag dmg zip sign notarize staple
 
 # ── Full release pipeline ─────────────────────────────────────────────────────
 
@@ -29,6 +29,16 @@ release: build sign notarize staple dmg zip
 	@echo ""
 	@echo "  -> $(DMG)"
 	@echo "  -> $(ZIP)"
+
+# ── Lint ─────────────────────────────────────────────────────────────────────
+
+lint:
+	@if command -v swiftlint >/dev/null 2>&1; then \
+	  echo "==> Linting..."; \
+	  swiftlint lint --strict; \
+	else \
+	  echo "==> Skipping lint (swiftlint not installed — brew install swiftlint)"; \
+	fi
 
 # ── Test ─────────────────────────────────────────────────────────────────────
 
@@ -131,7 +141,7 @@ run: build
 
 # ── Release tagging ──────────────────────────────────────────────────────────
 
-tag:
+tag: lint
 	@if [ -z "$(VERSION)" ]; then echo "Usage: make tag VERSION=1.0.0"; exit 1; fi
 	@if [ -n "$$(git status --porcelain)" ]; then echo "Working directory is not clean — commit changes first"; exit 1; fi
 	@sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = $(VERSION)/g" $(PROJECT)/project.pbxproj

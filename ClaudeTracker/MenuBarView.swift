@@ -416,7 +416,7 @@ struct MenuBarView: View {
                 .chartYScale(domain: domain ?? (0...max(values.max().map { $0 * 1.2 } ?? 1, 1)))
                 .chartXScale(domain: xDomain)
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                    AxisMarks(values: .automatic(desiredCount: 3)) { _ in
                         AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
                             .foregroundStyle(Color.secondary.opacity(0.2))
                         AxisValueLabel(format: xFormat)
