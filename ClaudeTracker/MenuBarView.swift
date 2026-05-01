@@ -137,7 +137,11 @@ struct MenuBarView: View {
 
     @ViewBuilder
     private func usageWindows(_ usage: UsageResponse) -> some View {
-        if let error = viewModel.error {
+        if viewModel.isDataStale {
+            Label("Window reset — refreshing…", systemImage: "arrow.clockwise")
+                .font(sf(11))
+                .foregroundStyle(.secondary)
+        } else if let error = viewModel.error {
             Label(error, systemImage: "exclamationmark.triangle")
                 .font(sf(11))
                 .foregroundStyle(.orange)

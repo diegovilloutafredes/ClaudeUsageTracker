@@ -127,6 +127,15 @@ final class UsageViewModel {
     @ObservationIgnored private var appearanceCancellable: AnyCancellable?
     @ObservationIgnored private var debounceTask: Task<Void, Never>?
     @ObservationIgnored private var fetchTask: Task<Void, Never>?
+    @ObservationIgnored private var wakeObserver: NSObjectProtocol?
+    /// Adaptive check interval (seconds), computed from release cadence. Clamped 4h–24h.
+    private var nextCheckInterval: TimeInterval = 12 * 3600
+
+    var updateCheckIntervalLabel: String {
+        let h = (nextCheckInterval / 3600).rounded()
+        if h < 24 { return "Checks every ~\(Int(h))h — on launch and wake" }
+        return "Checks every ~\(max(1, Int((h / 24).rounded())))d — on launch and wake"
+    }
     /// Increments on every failed fetch; drives exponential backoff in `applyBackoff()`.
     private var consecutiveErrors = 0
     /// Tracks the parsed `resetsAt` date seen in the previous fetch for each window key.
@@ -198,7 +207,22 @@ final class UsageViewModel {
 
         autoUpdate = UserDefaults.standard.object(forKey: "autoUpdate") as? Bool ?? false
 
+        let savedCheckInterval = UserDefaults.standard.double(forKey: "updateCheckInterval")
+        if savedCheckInterval >= 4 * 3600 { nextCheckInterval = savedCheckInterval }
+
         isInitialized = true
+
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                AppLogger.shared.info("wake detected — scheduling usage fetch and update check")
+                try? await Task.sleep(for: .seconds(5))
+                self?.fetchUsage()
+                try? await Task.sleep(for: .seconds(25))
+                self?.checkForUpdates()
+            }
+        }
 
         checkExistingSession()
         Task { try? await Task.sleep(for: .seconds(10)); checkForUpdates() }
@@ -287,6 +311,7 @@ final class UsageViewModel {
     /// Fetches the latest usage data, detects resets, and applies backoff on repeated failures.
     func fetchUsage() {
         guard isAuthenticated else { return }
+        if isDataStale { AppLogger.shared.info("fetchUsage: refreshing stale data (resetsAt passed since last fetch)") }
         fetchTask?.cancel()
         isLoading = true
         fetchTask = Task { [weak self] in
@@ -346,15 +371,27 @@ final class UsageViewModel {
         }
     }
 
+    /// True when the stored `usage` was fetched before a window's `resetsAt` time that has
+    /// now passed — meaning the displayed utilization belongs to the previous window cycle
+    /// and is definitively wrong. Clears automatically once a fresh fetch succeeds.
+    var isDataStale: Bool {
+        guard let usage, let lastUpdated else { return false }
+        let now = Date()
+        return [usage.fiveHour, usage.sevenDay].compactMap { $0 }.contains { window in
+            guard let resetDate = window.resetsAtDate else { return false }
+            return resetDate < now && lastUpdated < resetDate
+        }
+    }
+
     var statusText: String {
         guard isAuthenticated else { return "–" }
-        guard usage != nil else {
-            return error != nil ? "!" : "…"
-        }
+        guard usage != nil else { return error != nil ? "!" : "…" }
+        if isDataStale { return "…" }
         return "\(Int(displayedUtilization))%"
     }
 
     var statusIcon: String {
+        if isDataStale { return "bolt.fill" }
         let effectiveUrgency = max(displayedUtilization / 100.0, displayedWindowPaceUrgency())
         if effectiveUrgency >= 0.8 { return "exclamationmark.triangle.fill" }
         if effectiveUrgency >= 0.5 { return "bolt.badge.clock.fill" }
@@ -362,7 +399,7 @@ final class UsageViewModel {
     }
 
     var statusColor: NSColor {
-        guard isAuthenticated, usage != nil else { return .labelColor }
+        guard isAuthenticated, usage != nil, !isDataStale else { return .labelColor }
         let effectiveUrgency = max(displayedUtilization / 100.0, displayedWindowPaceUrgency())
         return urgencyNSColor(effectiveUrgency)
     }
@@ -610,40 +647,72 @@ final class UsageViewModel {
 
     // MARK: - Update Check
 
-    /// Checks GitHub Releases for a newer version and populates `availableUpdate` if found.
-    /// Safe to call multiple times; debounced by `isCheckingForUpdates`.
+    /// Fetches the last 10 GitHub releases, checks for a newer version, and updates the adaptive
+    /// check interval from the release cadence. Safe to call multiple times — debounced by
+    /// `isCheckingForUpdates`.
     func checkForUpdates() {
         guard !isCheckingForUpdates else { return }
         if case .failed = updateDownloadState { updateDownloadState = .idle }
         isCheckingForUpdates = true
         Task {
             defer { isCheckingForUpdates = false }
-            guard let url = URL(string: "https://api.github.com/repos/diegovilloutafredes/ClaudeTracker/releases/latest") else { return }
+            guard let url = URL(string: "https://api.github.com/repos/diegovilloutafredes/ClaudeTracker/releases?per_page=10") else { return }
             var req = URLRequest(url: url)
             req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
             req.timeoutInterval = 10
             guard let (data, _) = try? await URLSession.shared.data(for: req),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let tag = json["tag_name"] as? String,
-                  let htmlUrl = json["html_url"] as? String,
+                  let releases = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                  let latest = releases.first,
+                  let tag = latest["tag_name"] as? String,
+                  let htmlUrl = latest["html_url"] as? String,
                   let releaseUrl = URL(string: htmlUrl) else { return }
+
             let remote  = tag.trimmingCharacters(in: .init(charactersIn: "v"))
             let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
             if isNewerVersion(remote, than: current) {
-                let assets = json["assets"] as? [[String: Any]]
+                let assets = latest["assets"] as? [[String: Any]]
                 let zipAsset = assets?.first { ($0["name"] as? String)?.hasSuffix(".zip") == true }
                 let downloadURL = (zipAsset?["browser_download_url"] as? String).flatMap(URL.init)
                 availableUpdate = UpdateInfo(version: remote, releaseURL: releaseUrl, downloadURL: downloadURL)
-                if autoUpdate, downloadURL != nil { triggerAutoInstall() }
+                if autoUpdate, downloadURL != nil {
+                    if case .idle = updateDownloadState { triggerAutoInstall() }
+                }
+            }
+
+            let computed = computeCheckInterval(from: releases)
+            if computed != nextCheckInterval {
+                nextCheckInterval = computed
+                UserDefaults.standard.set(computed, forKey: "updateCheckInterval")
+                AppLogger.shared.info("update check interval adjusted to \(Int(computed / 3600))h based on release cadence")
+                if autoUpdate { schedulePeriodicUpdateCheck() }
             }
         }
+    }
+
+    /// Derives a check interval from the average gap between the last N release dates.
+    /// Clamped to [4h, 24h]; defaults to 12h when history is insufficient.
+    private func computeCheckInterval(from releases: [[String: Any]]) -> TimeInterval {
+        let fmt = ISO8601DateFormatter()
+        let dates = releases.compactMap { r -> Date? in
+            guard let s = r["published_at"] as? String else { return nil }
+            return fmt.date(from: s)
+        }.sorted(by: >)
+        guard dates.count >= 2 else { return 12 * 3600 }
+        var gaps: [TimeInterval] = []
+        for i in 0..<(dates.count - 1) {
+            let gap = dates[i].timeIntervalSince(dates[i + 1])
+            if gap > 0 { gaps.append(gap) }
+        }
+        guard !gaps.isEmpty else { return 12 * 3600 }
+        let avg = gaps.reduce(0, +) / Double(gaps.count)
+        return max(4 * 3600, min(24 * 3600, avg * 0.5))
     }
 
     private func schedulePeriodicUpdateCheck() {
         updateCheckTimer?.cancel()
         updateCheckTimer = nil
         guard autoUpdate else { return }
-        updateCheckTimer = Timer.publish(every: 24 * 3600, on: .main, in: .common)
+        updateCheckTimer = Timer.publish(every: nextCheckInterval, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in self?.checkForUpdates() }
     }

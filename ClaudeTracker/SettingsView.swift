@@ -81,6 +81,12 @@ struct SettingsView: View {
 
             Toggle("Auto-install updates", isOn: $viewModel.autoUpdate)
                 .toggleStyle(GreenSwitchStyle())
+            if viewModel.autoUpdate {
+                Text(viewModel.updateCheckIntervalLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 20)
+            }
 
             HStack(spacing: 10) {
                 Button("Open Logs") {
