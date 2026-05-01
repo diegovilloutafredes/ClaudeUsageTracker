@@ -10,14 +10,17 @@ A macOS menu bar app that shows your [Claude AI](https://claude.ai) usage limits
 
 - Live 5-Hour and 7-Day utilization bars with color-coded thresholds (green / orange / red)
 - Reset countdowns with relative time display ("resets in 3 hours")
-- Menu bar label showing the selected window's utilization percentage at a glance; the icon is color-coded green / orange / red while the percentage stays in the default system color
+- Menu bar icon showing the selected window's utilization percentage; icon and badge use a continuous green → yellow → orange → red urgency gradient
 - Subscription badge (Pro, Max 5x, Max 20x, Team, Enterprise)
-- **Pace indicator** — shows current consumption rate (%/hr) and projected time to full; configurable rate window (5/10/15/30 min)
-- **Pace alerts** — toast/sound/banner notification when a window is projected to fill before it resets; auto-dismissed when pace improves past the warning threshold
+- **Charts tab** — historical area + line charts for all four windows with selectable time ranges (1h / 5h / 24h / 7d / 30d) and hover-interactive crosshair
+- **Pace indicator** — shows current consumption rate (%/hr) and projected time to full; configurable rate window (30s / 1m / 5m / 10m / 15m / 30m)
+- **Pace alerts** — toast/sound notification when a window is projected to fill before it resets; auto-dismissed when pace improves past the warning threshold
+- **Stale data detection** — if a usage window reset while the Mac was asleep, the app detects it on wake and refreshes instead of showing stale high utilization
 - Configurable notifications when a window resets: toast near the menu bar, sound, and system banner
   - Toast duration slider (1-30 s) or permanent mode until dismissed
+- **Auto-update** — periodically checks GitHub Releases on an adaptive schedule (based on historical release cadence), checks again on wake from sleep, and auto-installs with a countdown if enabled; shows a banner in the popover and a toast when a new version is found
 - **Popup scale** — slider (75–150%) to resize the popover proportionally
-- **Update checker** — checks GitHub Releases on launch and in Settings; shows a download link when a newer version is available
+- **Diagnostic logs** — rolling file log at `~/Library/Logs/ClaudeTracker/`; open directly from Settings
 - Configurable refresh interval (1-60 seconds, default 5 s)
 - No API key required — uses your existing claude.ai browser session
 
@@ -90,12 +93,13 @@ Authentication is handled by the shared WKWebView cookie store. Signing in once 
 |---|---|
 | `ClaudeTrackerApp.swift` | App entry point, `MenuBarExtra` scene, composed menu bar image |
 | `ClaudeAPIService.swift` | Hidden `WKWebView` for API calls; login page loading and cookie polling |
-| `UsageViewModel.swift` | Published state, polling timer, UserDefaults persistence, notification dispatch, update checker |
-| `Models.swift` | Codable structs for API responses; `MenuBarWindow` display enum; `UpdateInfo` |
+| `UsageViewModel.swift` | Published state, polling timer, UserDefaults persistence, notification dispatch, auto-update, stale data detection |
+| `Models.swift` | Codable structs for API responses; `MenuBarWindow` display enum; `UpdateInfo`; `computePace()` |
 | `LoginView.swift` | `NSViewRepresentable` wrapping the API web view; `LoginWindowController` |
 | `ToastWindowController.swift` | Floating `NSPanel`-based toast, positioned near the top-right corner |
-| `MenuBarView.swift` | Popover content — scalable progress bars, reset countdowns, extra usage |
+| `MenuBarView.swift` | Popover content — scalable progress bars, reset countdowns, charts tab, update banner |
 | `SettingsView.swift` | Account status, update checker, popup scale, notification and refresh settings |
+| `AppLogger.swift` | Rolling file logger (`~/Library/Logs/ClaudeTracker/`); also writes to `os.log` |
 
 ## Disclaimer
 
