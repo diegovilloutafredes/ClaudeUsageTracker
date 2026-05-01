@@ -59,7 +59,7 @@ final class UsageViewModel {
         didSet {
             guard resetSoundEnabled != oldValue else { return }
             UserDefaults.standard.set(resetSoundEnabled, forKey: "notifySound")
-            if resetSoundEnabled { NSSound(named: .init("Hero"))?.play() }
+            if resetSoundEnabled && isInitialized { NSSound(named: .init("Hero"))?.play() }
         }
     }
     var toastDuration: Double = 3.0 {
@@ -75,7 +75,7 @@ final class UsageViewModel {
         didSet {
             guard paceSoundEnabled != oldValue else { return }
             UserDefaults.standard.set(paceSoundEnabled, forKey: "paceSoundEnabled")
-            if paceSoundEnabled { NSSound(named: .init("Basso"))?.play() }
+            if paceSoundEnabled && isInitialized { NSSound(named: .init("Basso"))?.play() }
         }
     }
 
@@ -120,6 +120,7 @@ final class UsageViewModel {
         didSet { guard showChartsTab != oldValue else { return }; UserDefaults.standard.set(showChartsTab, forKey: "showChartsTab") }
     }
 
+    @ObservationIgnored private var isInitialized = false
     @ObservationIgnored let apiService = ClaudeAPIService()
     @ObservationIgnored private var timer: AnyCancellable?
     @ObservationIgnored private var updateCheckTimer: AnyCancellable?
@@ -196,6 +197,8 @@ final class UsageViewModel {
         }
 
         autoUpdate = UserDefaults.standard.object(forKey: "autoUpdate") as? Bool ?? false
+
+        isInitialized = true
 
         checkExistingSession()
         Task { try? await Task.sleep(for: .seconds(10)); checkForUpdates() }
@@ -302,6 +305,7 @@ final class UsageViewModel {
             } catch let err as ClaudeAPIService.APIError {
                 guard !Task.isCancelled else { return }
                 consecutiveErrors += 1
+                AppLogger.shared.error("fetchUsage APIError (#\(consecutiveErrors)): \(err.localizedDescription)")
                 error = err.localizedDescription
                 if case .unauthorized = err {
                     if consecutiveErrors > 1 {
@@ -317,6 +321,7 @@ final class UsageViewModel {
             } catch {
                 guard !Task.isCancelled else { return }
                 consecutiveErrors += 1
+                AppLogger.shared.error("fetchUsage unexpected error (#\(consecutiveErrors)): \(error)")
                 self.error = error.localizedDescription
             }
             isLoading = false
@@ -736,6 +741,7 @@ final class UsageViewModel {
                 }
                 NSApp.terminate(nil)
             } catch {
+                AppLogger.shared.error("auto-update failed: \(error)")
                 updateDownloadState = .failed(error.localizedDescription)
             }
         }

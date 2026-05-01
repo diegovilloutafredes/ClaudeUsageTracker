@@ -10,14 +10,17 @@ struct SettingsView: View {
 
         Form {
             accountSection
-            displaySection
-            resetSection
-            paceSection
-            refreshSection
+            if viewModel.isAuthenticated {
+                displaySection
+                resetSection
+                paceSection
+                refreshSection
+            }
         }
         .formStyle(.grouped)
-        .frame(minWidth: w, idealWidth: w, maxWidth: w, maxHeight: .infinity)
-        .background(SettingsWindowPositioner(targetWidth: w))
+        .frame(minWidth: w, idealWidth: w, maxWidth: w)
+        .fixedSize(horizontal: false, vertical: !viewModel.isAuthenticated)
+        .background(SettingsWindowPositioner(targetWidth: w, isAuthenticated: viewModel.isAuthenticated))
     }
 
     // MARK: - Account
@@ -78,6 +81,17 @@ struct SettingsView: View {
 
             Toggle("Auto-install updates", isOn: $viewModel.autoUpdate)
                 .toggleStyle(GreenSwitchStyle())
+
+            HStack(spacing: 10) {
+                Button("Open Logs") {
+                    if let url = AppLogger.shared.logFileURL?.deletingLastPathComponent() {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                Text("Error and API logs for debugging")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Text("Unofficial tool — not affiliated with or endorsed by Anthropic. May break if Anthropic changes their web API.")
                 .font(.caption)
@@ -362,6 +376,7 @@ private struct GreenSwitchStyle: ToggleStyle {
 /// async dispatch.
 private struct SettingsWindowPositioner: NSViewRepresentable {
     let targetWidth: CGFloat
+    let isAuthenticated: Bool
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
@@ -369,15 +384,28 @@ private struct SettingsWindowPositioner: NSViewRepresentable {
             guard let window = view.window, let screen = NSScreen.main else { return }
             let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
             window.title = String(format: String(localized: "Settings · v%@"), version)
-            let sf  = screen.frame
-            let mbh = sf.maxY - screen.visibleFrame.maxY
-            let x   = (sf.midX - targetWidth / 2).rounded()
-            window.setFrame(CGRect(x: x, y: sf.minY, width: targetWidth, height: sf.height - mbh), display: true)
+            Self.reframe(window: window, screen: screen, targetWidth: targetWidth, isAuthenticated: isAuthenticated)
             window.makeKeyAndOrderFront(nil)
             NSApp.activate()
         }
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = nsView.window, let screen = NSScreen.main else { return }
+            Self.reframe(window: window, screen: screen, targetWidth: targetWidth, isAuthenticated: isAuthenticated)
+        }
+    }
+
+    private static func reframe(window: NSWindow, screen: NSScreen, targetWidth: CGFloat, isAuthenticated: Bool) {
+        let sf  = screen.frame
+        let mbh = sf.maxY - screen.visibleFrame.maxY
+        let x   = (sf.midX - targetWidth / 2).rounded()
+        let h   = isAuthenticated ? (sf.height - mbh).rounded() : window.frame.height
+        let y   = (sf.maxY - mbh - h).rounded()
+        let newFrame = CGRect(x: x, y: y, width: targetWidth, height: h)
+        guard window.frame != newFrame else { return }
+        window.setFrame(newFrame, display: true, animate: false)
+    }
 }

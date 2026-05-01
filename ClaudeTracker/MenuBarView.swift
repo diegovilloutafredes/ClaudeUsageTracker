@@ -124,6 +124,7 @@ struct MenuBarView: View {
             }
             .controlSize(.large)
             .buttonStyle(.borderedProminent)
+            .tint(.accentColor)
 
             Text("Opens Claude in a browser window.")
                 .font(sf(11))
