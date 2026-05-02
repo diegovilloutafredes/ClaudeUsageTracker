@@ -86,8 +86,9 @@ struct UsageResponse: Codable {
 struct UsageWindow: Codable {
     /// Utilization as a percentage (0–100+; may slightly exceed 100 when overages are permitted).
     let utilization: Double
-    /// ISO 8601 timestamp of the next reset, as returned by the API.
-    let resetsAt: String
+    /// ISO 8601 timestamp of the next reset. Nil immediately after a reset while the server
+    /// is computing the new window — decoding must tolerate null here.
+    let resetsAt: String?
 
     enum CodingKeys: String, CodingKey {
         case utilization
@@ -99,7 +100,8 @@ struct UsageWindow: Codable {
     /// The API returns timestamps both with and without fractional seconds depending on the
     /// server — two formatters are tried in order to handle both forms.
     var resetsAtDate: Date? {
-        Self.formatterWithFractional.date(from: resetsAt)
+        guard let resetsAt else { return nil }
+        return Self.formatterWithFractional.date(from: resetsAt)
             ?? Self.formatterWithout.date(from: resetsAt)
     }
 

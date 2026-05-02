@@ -441,6 +441,17 @@
         }
       }
     },
+    "Forecast" : {
+      "comment" : "Label for the projection chart showing expected vs extrapolated usage",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pronóstico"
+          }
+        }
+      }
+    },
     "No data for this period" : {
       "comment" : "Chart empty state when no history data exists for selected range",
       "localizations" : {

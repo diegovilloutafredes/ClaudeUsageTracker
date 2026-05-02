@@ -274,9 +274,19 @@ struct MenuBarView: View {
                     .padding(.vertical, 16 * s)
             } else {
                 VStack(alignment: .leading, spacing: 22 * s) {
-                    windowCharts(title: "5-Hour", utilKeyPath: \.fiveHour, paceKeyPath: \.fiveHourPace, history: visible, xDomain: xDomain, selectedTime: $selectedTime)
+                    windowCharts(
+                        title: "5-Hour", utilKeyPath: \.fiveHour, paceKeyPath: \.fiveHourPace,
+                        history: visible, xDomain: xDomain, selectedTime: $selectedTime,
+                        window: viewModel.usage?.fiveHour, windowDuration: 5 * 3600,
+                        currentPaceRate: viewModel.pace(for: "five_hour")?.rate
+                    )
                     Divider()
-                    windowCharts(title: "7-Day", utilKeyPath: \.sevenDay, paceKeyPath: \.sevenDayPace, history: visible, xDomain: xDomain, selectedTime: $selectedTime)
+                    windowCharts(
+                        title: "7-Day", utilKeyPath: \.sevenDay, paceKeyPath: \.sevenDayPace,
+                        history: visible, xDomain: xDomain, selectedTime: $selectedTime,
+                        window: viewModel.usage?.sevenDay, windowDuration: 7 * 24 * 3600,
+                        currentPaceRate: viewModel.pace(for: "seven_day")?.rate
+                    )
                 }
             }
         }
@@ -311,7 +321,10 @@ struct MenuBarView: View {
         paceKeyPath: KeyPath<UsageDataPoint, Double?>,
         history: [UsageDataPoint],
         xDomain: ClosedRange<Date>,
-        selectedTime: Binding<Date?>
+        selectedTime: Binding<Date?>,
+        window: UsageWindow? = nil,
+        windowDuration: TimeInterval = 5 * 3600,
+        currentPaceRate: Double? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 14 * s) {
             Text(LocalizedStringKey(title))
@@ -334,6 +347,188 @@ struct MenuBarView: View {
                 selectedTime: selectedTime,
                 formatLabel: { viewModel.paceRateUnit.format($0) }
             )
+            if let w = window {
+                projectionChart(
+                    allHistory: viewModel.usageHistory,
+                    utilKeyPath: utilKeyPath,
+                    window: w,
+                    paceRate: currentPaceRate,
+                    windowDuration: windowDuration,
+                    selectedTime: selectedTime
+                )
+            }
+        }
+    }
+
+    private func forecastAccentColor(paceRate: Double?, lastVal: Double, lastDate: Date?, resetDate: Date) -> Color {
+        guard let rate = paceRate, lastVal < 100, lastDate != nil else { return .secondary }
+        let projHrs = (100.0 - lastVal) / rate
+        let hrsToReset = max(resetDate.timeIntervalSinceNow / 3600, 0)
+        if hrsToReset == 0 || projHrs >= hrsToReset { return .secondary }
+        if projHrs >= hrsToReset * 0.8 { return urgencyColor(0.7) }
+        return urgencyColor(1.0)
+    }
+
+    @ViewBuilder
+    private func projectionChart(
+        allHistory: [UsageDataPoint],
+        utilKeyPath: KeyPath<UsageDataPoint, Double?>,
+        window: UsageWindow,
+        paceRate: Double?,
+        windowDuration: TimeInterval,
+        selectedTime: Binding<Date?>
+    ) -> some View {
+        if let resetDate = window.resetsAtDate {
+            let windowStart = resetDate.addingTimeInterval(-windowDuration)
+            let pairs: [(Date, Double)] = allHistory
+                .filter { $0.timestamp >= windowStart }
+                .compactMap { dp in
+                    guard let v = dp[keyPath: utilKeyPath] else { return nil }
+                    return (dp.timestamp, v)
+                }
+            let lastDate = pairs.last?.0
+            let lastVal = pairs.last?.1 ?? window.utilization
+            let projEnd: Date? = lastDate.flatMap { ld -> Date? in
+                guard let rate = paceRate, lastVal < 100 else { return nil }
+                return ld.addingTimeInterval((100.0 - lastVal) / rate * 3600)
+            }
+            let xMax = [resetDate, projEnd].compactMap { $0 }.max() ?? resetDate
+            let accentColor = forecastAccentColor(paceRate: paceRate, lastVal: lastVal, lastDate: lastDate, resetDate: resetDate)
+            let span = xMax.timeIntervalSince(windowStart)
+            let xFmt: Date.FormatStyle = span < 25 * 3600
+                ? .dateTime.hour().minute()
+                : .dateTime.month(.abbreviated).day()
+            let hovered: (Date, Double)? = selectedTime.wrappedValue.flatMap { t in
+                (windowStart...xMax).contains(t)
+                    ? pairs.min(by: { abs($0.0.timeIntervalSince(t)) < abs($1.0.timeIntervalSince(t)) })
+                    : nil
+            }
+            let hoveredLabel: String? = hovered.map { t, v in
+                let windowDurationSecs = resetDate.timeIntervalSince(windowStart)
+                let expectedPct = windowDurationSecs > 0
+                    ? min(max(t.timeIntervalSince(windowStart) / windowDurationSecs * 100, 0), 100)
+                    : 0
+                let timeStr = span < 25 * 3600
+                    ? t.formatted(.dateTime.hour().minute())
+                    : t.formatted(.dateTime.month(.abbreviated).day())
+                return "actual \(Int(v))%  expected \(Int(expectedPct))%  \(timeStr)"
+            }
+
+            VStack(alignment: .leading, spacing: 7 * s) {
+                HStack {
+                    Text("Forecast")
+                        .font(sf(10))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if let label = hoveredLabel {
+                        Text(label)
+                            .font(sf(9))
+                            .foregroundStyle(.secondary)
+                    } else if let rate = paceRate {
+                        Text("pace \(viewModel.paceRateUnit.format(rate))")
+                            .font(sf(9))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if pairs.count < 2 {
+                    Text("Collecting…")
+                        .font(sf(9))
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .frame(height: 60 * s)
+                } else {
+                    forecastChartBody(
+                        pairs: pairs, lastDate: lastDate, lastVal: lastVal, projEnd: projEnd,
+                        windowStart: windowStart, resetDate: resetDate, xMax: xMax,
+                        accentColor: accentColor, xFmt: xFmt, selectedTime: selectedTime
+                    )
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func forecastChartBody(
+        pairs: [(Date, Double)],
+        lastDate: Date?,
+        lastVal: Double,
+        projEnd: Date?,
+        windowStart: Date,
+        resetDate: Date,
+        xMax: Date,
+        accentColor: Color,
+        xFmt: Date.FormatStyle,
+        selectedTime: Binding<Date?>
+    ) -> some View {
+        Chart {
+            LineMark(x: .value("Time", windowStart), y: .value("Usage", 0.0), series: .value("s", "expected"))
+                .foregroundStyle(Color.secondary.opacity(0.35))
+                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            LineMark(x: .value("Time", resetDate), y: .value("Usage", 100.0), series: .value("s", "expected"))
+                .foregroundStyle(Color.secondary.opacity(0.35))
+                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
+                AreaMark(x: .value("Time", pair.0), y: .value("Usage", pair.1))
+                    .foregroundStyle(Color.secondary.opacity(0.12))
+                    .interpolationMethod(.monotone)
+                LineMark(x: .value("Time", pair.0), y: .value("Usage", pair.1), series: .value("s", "actual"))
+                    .foregroundStyle(Color.secondary.opacity(0.8))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5))
+                    .interpolationMethod(.monotone)
+            }
+            if let ld = lastDate, let pe = projEnd {
+                LineMark(x: .value("Time", ld), y: .value("Usage", lastVal), series: .value("s", "extrapolated"))
+                    .foregroundStyle(accentColor)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+                LineMark(x: .value("Time", pe), y: .value("Usage", 100.0), series: .value("s", "extrapolated"))
+                    .foregroundStyle(accentColor)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+            }
+            if let t = selectedTime.wrappedValue, (windowStart...xMax).contains(t) {
+                RuleMark(x: .value("Selected", t))
+                    .foregroundStyle(Color.secondary.opacity(0.5))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+            }
+        }
+        .chartYScale(domain: 0...105)
+        .chartXScale(domain: windowStart...xMax)
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: 3)) { _ in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(Color.secondary.opacity(0.2))
+                AxisValueLabel(format: xFmt).font(.system(size: 8 * s))
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: .stride(by: 25)) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(Color.secondary.opacity(0.25))
+                AxisValueLabel {
+                    if let v = value.as(Double.self) {
+                        Text("\(Int(v))%").font(.system(size: 8 * s))
+                    }
+                }
+            }
+        }
+        .frame(height: 60 * s)
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            guard let plotFrame = proxy.plotFrame else { return }
+                            let frame = geo[plotFrame]
+                            let x = location.x - frame.origin.x
+                            if let date = proxy.value(atX: x, as: Date.self) {
+                                selectedTime.wrappedValue = date
+                            }
+                        case .ended:
+                            selectedTime.wrappedValue = nil
+                        }
+                    }
+            }
         }
     }
 
@@ -552,11 +747,11 @@ struct UsageWindowView: View {
                 Spacer()
                 Text(isStale ? "0%" : "\(Int(window.utilization))%")
                     .font(.system(size: 12 * scale, weight: .bold).monospacedDigit())
-                    .foregroundStyle(window.utilizationColor)
+                    .foregroundStyle(isStale ? Color.secondary : window.utilizationColor)
             }
 
             ProgressView(value: isStale ? 0.0 : window.utilizationFraction)
-                .tint(window.utilizationColor)
+                .tint(isStale ? Color.secondary : window.utilizationColor)
 
             if let resetDate = window.resetsAtDate {
                 HStack(spacing: 4) {
