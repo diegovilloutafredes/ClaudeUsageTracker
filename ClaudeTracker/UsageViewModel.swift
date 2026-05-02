@@ -91,6 +91,10 @@ final class UsageViewModel {
     var paceSmoothing: PaceSmoothing = .balanced {
         didSet { guard paceSmoothing != oldValue else { return }; UserDefaults.standard.set(paceSmoothing.rawValue, forKey: "paceSmoothing") }
     }
+    /// Time unit for displaying the consumption rate (per hour / per minute / per second).
+    var paceRateUnit: PaceRateUnit = .perHour {
+        didSet { guard paceRateUnit != oldValue else { return }; UserDefaults.standard.set(paceRateUnit.rawValue, forKey: "paceRateUnit") }
+    }
     /// Whether a notification fires when a watched window is projected to fill before it resets.
     var notifyPace: Bool = false {
         didSet { guard notifyPace != oldValue else { return }; UserDefaults.standard.set(notifyPace, forKey: "notifyPace") }
@@ -192,6 +196,8 @@ final class UsageViewModel {
         showPaceMenuBar = UserDefaults.standard.object(forKey: "showPaceMenuBar")     as? Bool ?? true
         if let raw = UserDefaults.standard.string(forKey: "paceSmoothing"),
            let saved = PaceSmoothing(rawValue: raw) { paceSmoothing = saved }
+        if let raw = UserDefaults.standard.string(forKey: "paceRateUnit"),
+           let saved = PaceRateUnit(rawValue: raw) { paceRateUnit = saved }
         notifyPace     = UserDefaults.standard.object(forKey: "notifyPace")           as? Bool ?? false
         let savedWarning = UserDefaults.standard.double(forKey: "paceWarningMinutes")
         paceWarningMinutes = savedWarning > 0 ? savedWarning : 30
@@ -508,8 +514,8 @@ final class UsageViewModel {
     /// Triggers a test pace notification through all currently enabled pace channels.
     func sendTestPaceNotification() {
         let title = String(localized: "Approaching usage limit")
-        let body  = String(format: String(localized: "%@ fills in %d min at %.1f%%/hr"),
-                           String(localized: "5-Hour Window"), 25, 45.0)
+        let body  = String(format: String(localized: "%@ fills in %d min at %@"),
+                           String(localized: "5-Hour Window"), 25, paceRateUnit.format(45.0))
         if paceToastEnabled {
             ToastWindowController.shared.show(title: title, message: body,
                 icon: "exclamationmark.triangle.fill", iconColor: .orange,
@@ -580,7 +586,7 @@ final class UsageViewModel {
                 paceWarned.insert(key)
                 let minsLeft = max(1, Int(projHours * 60))
                 let title = String(localized: "Approaching usage limit")
-                let body  = String(format: String(localized: "%@ fills in %d min at %.1f%%/hr"), name, minsLeft, pd.rate)
+                let body  = String(format: String(localized: "%@ fills in %d min at %@"), name, minsLeft, paceRateUnit.format(pd.rate))
                 if paceToastEnabled {
                     paceToastIDs[key] = ToastWindowController.shared.show(title: title, message: body,
                         icon: "exclamationmark.triangle.fill", iconColor: .orange,
@@ -852,9 +858,7 @@ extension UsageViewModel {
         case .sevenDay:  key = "seven_day"
         }
         guard let paceData = pace(for: key) else { return nil }
-        return paceData.rate < 10
-            ? String(format: "+%.1f%%/h", paceData.rate)
-            : "+\(Int(paceData.rate.rounded()))%/h"
+        return paceRateUnit.format(paceData.rate, prefix: true, short: true)
     }
 
     private var menuBarPaceColor: NSColor {

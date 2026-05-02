@@ -244,7 +244,8 @@ struct MenuBarView: View {
             window: window,
             paceRate: pace?.rate,
             projectedHours: pace?.projectedHours,
-            scale: s
+            scale: s,
+            paceRateUnit: viewModel.paceRateUnit
         )
     }
 
@@ -328,7 +329,7 @@ struct MenuBarView: View {
                 domain: nil,
                 xDomain: xDomain,
                 selectedTime: selectedTime,
-                formatLabel: { String(format: "%.1f%%/hr", $0) }
+                formatLabel: { viewModel.paceRateUnit.format($0) }
             )
         }
     }
@@ -462,15 +463,6 @@ struct MenuBarView: View {
 
     private var footer: some View {
         HStack {
-            if let lastUpdated = viewModel.lastUpdated {
-                Text("Updated \(lastUpdated, style: .relative) ago")
-                    .font(sf(11))
-                    .foregroundStyle(.secondary)
-            }
-            if viewModel.isLoading {
-                ProgressView()
-                    .controlSize(.mini)
-            }
             Spacer()
             Button {
                 openSettings()
@@ -542,6 +534,7 @@ struct UsageWindowView: View {
     let paceRate: Double?
     let projectedHours: Double?
     let scale: CGFloat
+    var paceRateUnit: PaceRateUnit = .perHour
 
     private func sf(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
         .system(size: size * scale, weight: weight)
@@ -641,7 +634,7 @@ struct UsageWindowView: View {
             return min(hoursToReset / proj, 1.0)
         }()
 
-        let rateText = String(format: "+%.1f%%/hr", rate)
+        let rateText = paceRateUnit.format(rate, prefix: true)
         let projText: String? = projectedHours.flatMap { h in
             guard h < 24 else { return nil }
             if h < 1 { return String(format: String(localized: "· full in %dm"), max(1, Int(h * 60))) }

@@ -229,6 +229,20 @@ struct SettingsView: View {
                     .labelsHidden()
                 }
                 .padding(.leading, 20)
+
+                HStack(spacing: 10) {
+                    Text("Rate unit")
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                    Picker("", selection: $viewModel.paceRateUnit) {
+                        ForEach(PaceRateUnit.allCases) { unit in
+                            Text(unit.label).tag(unit)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+                .padding(.leading, 20)
             }
         }
     }

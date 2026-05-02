@@ -245,6 +245,51 @@ enum PaceSmoothing: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Pace Rate Unit
+
+/// The time unit used to display the consumption rate in the UI.
+enum PaceRateUnit: String, CaseIterable, Identifiable {
+    case perHour
+    case perMinute
+    case perSecond
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .perHour:   return String(localized: "Per Hour")
+        case .perMinute: return String(localized: "Per Minute")
+        case .perSecond: return String(localized: "Per Second")
+        }
+    }
+
+    /// Format a rate (expressed internally as %/hr) for display.
+    /// - Parameters:
+    ///   - ratePerHour: Raw rate from `computePace`, always in %/hr.
+    ///   - prefix: When `true`, prepends "+" (for live pace lines and menu bar).
+    ///   - short: When `true`, uses single-char time abbreviations for the menu bar.
+    func format(_ ratePerHour: Double, prefix: Bool = false, short: Bool = false) -> String {
+        let sign = prefix ? "+" : ""
+        switch self {
+        case .perHour:
+            let unit = short ? "/h" : "/hr"
+            return ratePerHour < 10
+                ? String(format: "\(sign)%.1f%%\(unit)", ratePerHour)
+                : String(format: "\(sign)%d%%\(unit)", Int(ratePerHour.rounded()))
+        case .perMinute:
+            let unit = short ? "/m" : "/min"
+            let v = ratePerHour / 60.0
+            return v < 1
+                ? String(format: "\(sign)%.3f%%\(unit)", v)
+                : String(format: "\(sign)%.2f%%\(unit)", v)
+        case .perSecond:
+            let unit = "/s"
+            let v = ratePerHour / 3600.0
+            return String(format: "\(sign)%.4f%%\(unit)", v)
+        }
+    }
+}
+
 // MARK: - Menu Bar Display Option
 
 /// The rate-limit window whose utilization the menu bar label tracks.

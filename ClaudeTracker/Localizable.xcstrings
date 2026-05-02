@@ -12,13 +12,13 @@
         }
       }
     },
-    "%@ fills in %d min at %.1f%%/hr" : {
-      "comment" : "Pace alert notification body: window name, minutes, rate",
+    "%@ fills in %d min at %@" : {
+      "comment" : "Pace alert notification body: window name, minutes, formatted rate string",
       "localizations" : {
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ se llenará en %d min a %.1f%%/h"
+            "value" : "%@ se llenará en %d min a %@"
           }
         }
       }
