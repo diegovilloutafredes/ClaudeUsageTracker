@@ -843,8 +843,8 @@ final class UsageViewModel {
 
 // MARK: - Menu Bar Image
 
-private extension UsageViewModel {
-    var menuBarPaceText: String? {
+extension UsageViewModel {
+    private var menuBarPaceText: String? {
         guard showPaceMenuBar, isAuthenticated, usage != nil, !isDataStale else { return nil }
         let key: String
         switch menuBarWindow {
@@ -857,7 +857,7 @@ private extension UsageViewModel {
             : "+\(Int(paceData.rate.rounded()))%/h"
     }
 
-    var menuBarPaceColor: NSColor {
+    private var menuBarPaceColor: NSColor {
         urgencyNSColor(displayedWindowPaceUrgency())
     }
 
@@ -876,7 +876,7 @@ private extension UsageViewModel {
         return cachedMenuBarImage
     }
 
-    func buildMenuBarImage(iconName: String, text: String, color: NSColor, paceText: String? = nil, paceColor: NSColor = .labelColor) -> NSImage {
+    private func buildMenuBarImage(iconName: String, text: String, color: NSColor, paceText: String? = nil, paceColor: NSColor = .labelColor) -> NSImage {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         let symbolConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
             .applying(NSImage.SymbolConfiguration(paletteColors: [color, .labelColor]))
