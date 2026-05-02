@@ -238,14 +238,17 @@ struct MenuBarView: View {
     }
 
     private func windowRow(windowKey: MenuBarWindow, window: UsageWindow) -> some View {
-        let pace = viewModel.showPace ? viewModel.pace(for: windowKey.rawValue) : nil
+        let windowIsStale = viewModel.isWindowStale(window)
+        let suppressPace = window.utilization >= 100 || windowIsStale
+        let pace = (viewModel.showPace && !suppressPace) ? viewModel.pace(for: windowKey.rawValue) : nil
         return UsageWindowView(
             title: windowKey.label,
             window: window,
             paceRate: pace?.rate,
             projectedHours: pace?.projectedHours,
             scale: s,
-            paceRateUnit: viewModel.paceRateUnit
+            paceRateUnit: viewModel.paceRateUnit,
+            isStale: windowIsStale
         )
     }
 
@@ -535,6 +538,7 @@ struct UsageWindowView: View {
     let projectedHours: Double?
     let scale: CGFloat
     var paceRateUnit: PaceRateUnit = .perHour
+    var isStale: Bool = false
 
     private func sf(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
         .system(size: size * scale, weight: weight)
@@ -546,12 +550,12 @@ struct UsageWindowView: View {
                 Text(title)
                     .font(sf(12, .bold))
                 Spacer()
-                Text("\(Int(window.utilization))%")
+                Text(isStale ? "0%" : "\(Int(window.utilization))%")
                     .font(.system(size: 12 * scale, weight: .bold).monospacedDigit())
                     .foregroundStyle(window.utilizationColor)
             }
 
-            ProgressView(value: window.utilizationFraction)
+            ProgressView(value: isStale ? 0.0 : window.utilizationFraction)
                 .tint(window.utilizationColor)
 
             if let resetDate = window.resetsAtDate {

@@ -402,6 +402,11 @@ final class UsageViewModel {
         }
     }
 
+    func isWindowStale(_ window: UsageWindow) -> Bool {
+        guard let lastUpdated, let resetDate = window.resetsAtDate else { return false }
+        return resetDate < Date() && lastUpdated < resetDate
+    }
+
     var statusText: String {
         guard isAuthenticated else { return "–" }
         guard usage != nil else { return error != nil ? "!" : "…" }
@@ -852,6 +857,7 @@ final class UsageViewModel {
 extension UsageViewModel {
     private var menuBarPaceText: String? {
         guard showPaceMenuBar, isAuthenticated, usage != nil, !isDataStale else { return nil }
+        guard displayedUtilization < 100 else { return nil }
         let key: String
         switch menuBarWindow {
         case .fiveHour: key = "five_hour"
