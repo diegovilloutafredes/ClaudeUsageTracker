@@ -14,7 +14,6 @@ struct SettingsView: View {
                 displaySection
                 resetSection
                 paceSection
-                refreshSection
             }
         }
         .formStyle(.grouped)
@@ -200,37 +199,6 @@ struct SettingsView: View {
 
             if viewModel.showPace || viewModel.showPaceMenuBar || viewModel.notifyPace {
                 HStack(spacing: 10) {
-                    Text("Rate window")
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                    Picker("", selection: $viewModel.paceHistoryMinutes) {
-                        Text("30s").tag(0.5)
-                        Text("1m").tag(1.0)
-                        Text("5m").tag(5.0)
-                        Text("10m").tag(10.0)
-                        Text("15m").tag(15.0)
-                        Text("30m").tag(30.0)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                }
-                .padding(.leading, 20)
-
-                HStack(spacing: 10) {
-                    Text("Smoothing")
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                    Picker("", selection: $viewModel.paceSmoothing) {
-                        ForEach(PaceSmoothing.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                }
-                .padding(.leading, 20)
-
-                HStack(spacing: 10) {
                     Text("Rate unit")
                         .foregroundStyle(.secondary)
                         .font(.callout)
@@ -361,21 +329,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Refresh
-
-    private var refreshSection: some View {
-        Section("Refresh Interval") {
-            LabeledContent("Poll every") {
-                HStack(spacing: 10) {
-                    Slider(value: $viewModel.refreshInterval, in: 1...60, step: 1)
-                    Text("\(Int(viewModel.refreshInterval))s")
-                        .font(.callout.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .frame(width: 36, alignment: .trailing)
-                }
-            }
-        }
-    }
 }
 
 // MARK: - Green Switch Toggle Style

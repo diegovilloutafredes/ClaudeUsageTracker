@@ -13,13 +13,6 @@ enum UpdateDownloadState {
 /// Central state for the app — owns API polling, UserDefaults persistence, and notification dispatch.
 @Observable @MainActor
 final class UsageViewModel {
-    var refreshInterval: Double = 5.0 {
-        didSet {
-            guard refreshInterval != oldValue else { return }
-            UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval")
-            debounceRestartPolling()
-        }
-    }
     var availableUpdate: UpdateInfo? = nil
     var isCheckingForUpdates = false
     var updateDownloadState: UpdateDownloadState = .idle
@@ -87,10 +80,6 @@ final class UsageViewModel {
     var showPaceMenuBar: Bool = true {
         didSet { guard showPaceMenuBar != oldValue else { return }; UserDefaults.standard.set(showPaceMenuBar, forKey: "showPaceMenuBar") }
     }
-    /// Exponential decay profile for the pace regression — Reactive/Balanced/Stable.
-    var paceSmoothing: PaceSmoothing = .balanced {
-        didSet { guard paceSmoothing != oldValue else { return }; UserDefaults.standard.set(paceSmoothing.rawValue, forKey: "paceSmoothing") }
-    }
     /// Time unit for displaying the consumption rate (per hour / per minute / per second).
     var paceRateUnit: PaceRateUnit = .perHour {
         didSet { guard paceRateUnit != oldValue else { return }; UserDefaults.standard.set(paceRateUnit.rawValue, forKey: "paceRateUnit") }
@@ -111,10 +100,6 @@ final class UsageViewModel {
     var paceToastPermanent: Bool = false {
         didSet { guard paceToastPermanent != oldValue else { return }; UserDefaults.standard.set(paceToastPermanent, forKey: "paceToastPermanent") }
     }
-    /// Rolling history window in minutes; older samples are discarded.
-    var paceHistoryMinutes: Double = 15 {
-        didSet { guard paceHistoryMinutes != oldValue else { return }; UserDefaults.standard.set(paceHistoryMinutes, forKey: "paceHistoryMinutes") }
-    }
     /// Multiplier applied to all spacing, padding, font sizes, and width in the popover.
     var popupScale: Double = 1.0 {
         didSet { guard popupScale != oldValue else { return }; UserDefaults.standard.set(popupScale, forKey: "popupScale") }
@@ -134,10 +119,9 @@ final class UsageViewModel {
 
     @ObservationIgnored private var isInitialized = false
     @ObservationIgnored let apiService = ClaudeAPIService()
-    @ObservationIgnored private var timer: AnyCancellable?
+    @ObservationIgnored private var timer: Task<Void, Never>?
     @ObservationIgnored private var updateCheckTimer: AnyCancellable?
     @ObservationIgnored private var appearanceCancellable: AnyCancellable?
-    @ObservationIgnored private var debounceTask: Task<Void, Never>?
     @ObservationIgnored private var fetchTask: Task<Void, Never>?
     @ObservationIgnored private var wakeObserver: NSObjectProtocol?
     @ObservationIgnored private var lastNotifiedUpdateVersion: String = ""
@@ -149,7 +133,7 @@ final class UsageViewModel {
         if h < 24 { return "Checks every ~\(Int(h))h — on launch and wake" }
         return "Checks every ~\(max(1, Int((h / 24).rounded())))d — on launch and wake"
     }
-    /// Increments on every failed fetch; drives exponential backoff in `applyBackoff()`.
+    /// Increments on every failed fetch; drives backoff in `scheduleNextPoll()`.
     private var consecutiveErrors = 0
     /// Tracks the parsed `resetsAt` date seen in the previous fetch for each window key.
     /// A reset is inferred when the new date is > 1 hour later AND utilization drops below 5 %.
@@ -166,9 +150,6 @@ final class UsageViewModel {
     private var lastHistoryTimestamp: Date? = nil
 
     init() {
-        let saved = UserDefaults.standard.double(forKey: "refreshInterval")
-        refreshInterval = saved > 0 ? saved : 5.0
-
         if let savedWindow = UserDefaults.standard.string(forKey: "menuBarWindow"),
            let window = MenuBarWindow(rawValue: savedWindow) {
             menuBarWindow = window
@@ -194,8 +175,6 @@ final class UsageViewModel {
         toastPermanent = UserDefaults.standard.object(forKey: "toastPermanent")       as? Bool ?? false
         showPace       = UserDefaults.standard.object(forKey: "showPace")             as? Bool ?? true
         showPaceMenuBar = UserDefaults.standard.object(forKey: "showPaceMenuBar")     as? Bool ?? true
-        if let raw = UserDefaults.standard.string(forKey: "paceSmoothing"),
-           let saved = PaceSmoothing(rawValue: raw) { paceSmoothing = saved }
         if let raw = UserDefaults.standard.string(forKey: "paceRateUnit"),
            let saved = PaceRateUnit(rawValue: raw) { paceRateUnit = saved }
         notifyPace     = UserDefaults.standard.object(forKey: "notifyPace")           as? Bool ?? false
@@ -206,8 +185,6 @@ final class UsageViewModel {
         paceToastDuration  = savedPaceDuration > 0 ? savedPaceDuration : 5.0
         paceToastPermanent = UserDefaults.standard.object(forKey: "paceToastPermanent") as? Bool ?? false
         paceSoundEnabled   = UserDefaults.standard.object(forKey: "paceSoundEnabled") as? Bool ?? false
-        let savedHistory = UserDefaults.standard.double(forKey: "paceHistoryMinutes")
-        paceHistoryMinutes = savedHistory > 0 ? savedHistory : 15
         // v1: rebase — old 1.0 was the original size; new 1.0 matches old 1.1 (base constants grew ×1.1).
         // Reset any saved scale so existing users see the new default appearance unchanged.
         if UserDefaults.standard.object(forKey: "popupScaleRebased") == nil {
@@ -314,20 +291,16 @@ final class UsageViewModel {
 
     // MARK: - Polling
 
-    /// Cancels any existing timer and starts a fresh polling cycle at `refreshInterval`.
+    /// Cancels any existing timer and starts a fresh adaptive polling cycle.
     func startPolling() {
         timer?.cancel()
         timer = nil
         consecutiveErrors = 0
         guard isAuthenticated else { return }
-
         fetchUsage()
-        timer = Timer.publish(every: refreshInterval, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in self?.fetchUsage() }
     }
 
-    /// Fetches the latest usage data, detects resets, and applies backoff on repeated failures.
+    /// Fetches the latest usage data, detects resets, and schedules the next adaptive poll.
     func fetchUsage() {
         guard isAuthenticated else { return }
         if isDataStale { AppLogger.shared.info("fetchUsage: refreshing stale data (resetsAt passed since last fetch)") }
@@ -335,6 +308,7 @@ final class UsageViewModel {
         isLoading = true
         fetchTask = Task { [weak self] in
             guard let self else { return }
+            var shouldSchedule = false
             do {
                 let response = try await apiService.fetchUsage()
                 guard !Task.isCancelled else { return }
@@ -346,6 +320,7 @@ final class UsageViewModel {
                 error = nil
                 lastUpdated = Date()
                 consecutiveErrors = 0
+                shouldSchedule = true
             } catch let err as ClaudeAPIService.APIError {
                 guard !Task.isCancelled else { return }
                 consecutiveErrors += 1
@@ -356,19 +331,103 @@ final class UsageViewModel {
                         isAuthenticated = false
                         timer?.cancel()
                         timer = nil
+                    } else {
+                        // First 401: mapJSError already cleared isPageReady;
+                        // next poll reloads the page and retries automatically.
+                        shouldSchedule = true
                     }
-                    // First 401: mapJSError already cleared isPageReady;
-                    // next poll reloads the page and retries automatically.
-                } else if case .rateLimited = err {
-                    applyBackoff()
+                } else {
+                    shouldSchedule = true
                 }
             } catch {
                 guard !Task.isCancelled else { return }
                 consecutiveErrors += 1
                 AppLogger.shared.error("fetchUsage unexpected error (#\(consecutiveErrors)): \(error)")
                 self.error = error.localizedDescription
+                shouldSchedule = true
             }
             isLoading = false
+            if shouldSchedule { scheduleNextPoll() }
+        }
+    }
+
+    /// Schedules the next poll after an adaptive delay derived from current utilization and pace.
+    ///
+    /// Interval logic (per window, takes the minimum across both windows):
+    ///   - Window stale (reset passed while app was idle): 2 s — catch the new window fast
+    ///   - Utilization ≥ 100% and reset time known: 10–300 s based on time until reset
+    ///   - Utilization < 100% with pace: 1–10 s based on projected minutes to full
+    ///   - Utilization < 100% without pace: 3–10 s based on utilization level
+    ///   Backoff adds min(consecutiveErrors × 10, 60) s on top.
+    private func scheduleNextPoll() {
+        timer?.cancel()
+        let base = computeAdaptiveInterval()
+        let backoff = consecutiveErrors > 0 ? min(Double(consecutiveErrors) * 10, 60) : 0
+        let interval = base + backoff
+        if consecutiveErrors > 0 {
+            let stem = (error ?? "Error").components(separatedBy: " (retry in ").first ?? "Error"
+            error = String(format: String(localized: "%@ (retry in %ds)"), stem, Int(interval))
+        }
+        AppLogger.shared.info("poll: next in \(String(format: "%.1f", interval))s (base=\(String(format: "%.1f", base))s util=\(String(format: "%.0f", maxUtilization))%)")
+        timer = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(interval))
+            guard !Task.isCancelled else { return }
+            await MainActor.run { self?.fetchUsage() }
+        }
+    }
+
+    /// Computes the adaptive polling interval from the most urgent active window.
+    private func computeAdaptiveInterval() -> TimeInterval {
+        guard let usage else { return 10 }
+        let fh = intervalForWindow(key: "five_hour", window: usage.fiveHour)
+        let sd = intervalForWindow(key: "seven_day",  window: usage.sevenDay)
+        return min(fh, sd)
+    }
+
+    /// Computes the polling interval for a single usage window.
+    private func intervalForWindow(key: String, window: UsageWindow?) -> TimeInterval {
+        guard let window else { return 10 }
+        let util = window.utilization
+
+        // Stale: reset already passed — poll aggressively to catch the new window
+        if let resetDate = window.resetsAtDate, resetDate < Date() {
+            return 2
+        }
+
+        // At 100%: only need to catch the upcoming reset
+        if util >= 99.9 {
+            guard let resetDate = window.resetsAtDate else { return 30 }
+            let secs = max(0, resetDate.timeIntervalSinceNow)
+            switch secs {
+            case 1800...: return 300
+            case 600...:  return 120
+            case 120...:  return 30
+            default:      return 10
+            }
+        }
+
+        // Active: use projected minutes to full when pace is available
+        if let projMins = pace(for: key)?.projectedHours.map({ $0 * 60 }) {
+            return intervalForProjMins(projMins)
+        }
+
+        // Fallback: utilization-based steps when no pace signal yet
+        switch util {
+        case 95...: return 3
+        case 80...: return 5
+        case 50...: return 8
+        default:    return 10
+        }
+    }
+
+    private func intervalForProjMins(_ projMins: Double) -> TimeInterval {
+        switch projMins {
+        case 60...: return 10
+        case 30...: return 8
+        case 15...: return 5
+        case 5...:  return 3
+        case 2...:  return 2
+        default:    return 1
         }
     }
 
@@ -529,17 +588,6 @@ final class UsageViewModel {
         if paceSoundEnabled { NSSound(named: .init("Basso"))?.play() }
     }
 
-    // MARK: - Private
-
-    private func debounceRestartPolling() {
-        debounceTask?.cancel()
-        debounceTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled, let self else { return }
-            self.startPolling()
-        }
-    }
-
     // MARK: - Pace
 
     /// Appends the current utilization readings to the rolling history for each window.
@@ -549,7 +597,7 @@ final class UsageViewModel {
     /// cleared first — this handles window resets, which drop utilization back to near zero.
     private func recordHistory(_ response: UsageResponse) {
         let now = Date()
-        let cutoff = now.addingTimeInterval(-paceHistoryMinutes * 60)
+        let cutoff = now.addingTimeInterval(-5 * 60)
 
         func append(key: String, utilization: Double?) {
             guard let utilization else { return }
@@ -616,7 +664,7 @@ final class UsageViewModel {
     /// - Parameter key: The window key — `"five_hour"` or `"seven_day"`.
     func pace(for key: String) -> (rate: Double, projectedHours: Double?)? {
         guard let history = utilizationHistory[key] else { return nil }
-        return computePace(history: history, lambda: paceSmoothing.lambda)
+        return computePace(history: history, lambda: 2.0)
     }
 
     private func appendDataPoint(_ response: UsageResponse) {
@@ -836,20 +884,6 @@ final class UsageViewModel {
         }
     }
 
-    /// Replaces the polling timer with one firing at an escalating interval.
-    ///
-    /// The backoff adds 10 s per consecutive error up to a cap of 60 s above the base `refreshInterval`.
-    /// The error message is updated to show the effective retry delay.
-    private func applyBackoff() {
-        timer?.cancel()
-        let backoff = min(Double(consecutiveErrors) * 10, 60)
-        let interval = refreshInterval + backoff
-        let base = (error ?? "Error").components(separatedBy: " (retry in ").first ?? "Error"
-        error = String(format: String(localized: "%@ (retry in %ds)"), base, Int(interval))
-        timer = Timer.publish(every: interval, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in self?.fetchUsage() }
-    }
 }
 
 // MARK: - Menu Bar Image

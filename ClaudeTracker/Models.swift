@@ -216,37 +216,6 @@ struct UsageDataPoint: Codable, Identifiable {
     var id: Date { timestamp }
 }
 
-// MARK: - Pace Smoothing
-
-/// Controls how aggressively the pace regression weights recent readings over older ones.
-///
-/// Higher λ focuses on the most recent data (reactive to bursts, noisier);
-/// lower λ averages more evenly across the full history window (smoother, slower to react).
-enum PaceSmoothing: String, CaseIterable, Identifiable {
-    case reactive
-    case balanced
-    case stable
-
-    var id: String { rawValue }
-
-    /// Exponential decay factor for weighted least-squares regression.
-    var lambda: Double {
-        switch self {
-        case .reactive: return 3.0   // newest ~20× oldest — reacts in last few minutes
-        case .balanced: return 2.0   // newest ~7× oldest  — default
-        case .stable:   return 0.5   // newest ~1.6× oldest — near-uniform average
-        }
-    }
-
-    var label: String {
-        switch self {
-        case .reactive: return String(localized: "Reactive")
-        case .balanced: return String(localized: "Balanced")
-        case .stable:   return String(localized: "Stable")
-        }
-    }
-}
-
 // MARK: - Pace Rate Unit
 
 /// The time unit used to display the consumption rate in the UI.
