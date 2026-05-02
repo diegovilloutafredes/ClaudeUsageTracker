@@ -192,10 +192,13 @@ struct SettingsView: View {
             Toggle("Show charts tab", isOn: $viewModel.showChartsTab)
                 .toggleStyle(GreenSwitchStyle())
 
-            Toggle("Show pace indicator", isOn: $viewModel.showPace)
+            Toggle("Show pace in Usage tab", isOn: $viewModel.showPace)
                 .toggleStyle(GreenSwitchStyle())
 
-            if viewModel.showPace {
+            Toggle("Show pace in menu bar", isOn: $viewModel.showPaceMenuBar)
+                .toggleStyle(GreenSwitchStyle())
+
+            if viewModel.showPace || viewModel.showPaceMenuBar || viewModel.notifyPace {
                 HStack(spacing: 10) {
                     Text("Rate window")
                         .foregroundStyle(.secondary)
@@ -207,6 +210,20 @@ struct SettingsView: View {
                         Text("10m").tag(10.0)
                         Text("15m").tag(15.0)
                         Text("30m").tag(30.0)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+                .padding(.leading, 20)
+
+                HStack(spacing: 10) {
+                    Text("Smoothing")
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                    Picker("", selection: $viewModel.paceSmoothing) {
+                        ForEach(PaceSmoothing.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()

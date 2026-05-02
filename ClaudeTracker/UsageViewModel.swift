@@ -83,6 +83,14 @@ final class UsageViewModel {
     var showPace: Bool = true {
         didSet { guard showPace != oldValue else { return }; UserDefaults.standard.set(showPace, forKey: "showPace") }
     }
+    /// Whether the pace rate badge is shown in the menu bar alongside the utilization percentage.
+    var showPaceMenuBar: Bool = true {
+        didSet { guard showPaceMenuBar != oldValue else { return }; UserDefaults.standard.set(showPaceMenuBar, forKey: "showPaceMenuBar") }
+    }
+    /// Exponential decay profile for the pace regression — Reactive/Balanced/Stable.
+    var paceSmoothing: PaceSmoothing = .balanced {
+        didSet { guard paceSmoothing != oldValue else { return }; UserDefaults.standard.set(paceSmoothing.rawValue, forKey: "paceSmoothing") }
+    }
     /// Whether a notification fires when a watched window is projected to fill before it resets.
     var notifyPace: Bool = false {
         didSet { guard notifyPace != oldValue else { return }; UserDefaults.standard.set(notifyPace, forKey: "notifyPace") }
@@ -181,6 +189,9 @@ final class UsageViewModel {
         toastDuration  = savedDuration > 0 ? savedDuration : 3.0
         toastPermanent = UserDefaults.standard.object(forKey: "toastPermanent")       as? Bool ?? false
         showPace       = UserDefaults.standard.object(forKey: "showPace")             as? Bool ?? true
+        showPaceMenuBar = UserDefaults.standard.object(forKey: "showPaceMenuBar")     as? Bool ?? true
+        if let raw = UserDefaults.standard.string(forKey: "paceSmoothing"),
+           let saved = PaceSmoothing(rawValue: raw) { paceSmoothing = saved }
         notifyPace     = UserDefaults.standard.object(forKey: "notifyPace")           as? Bool ?? false
         let savedWarning = UserDefaults.standard.double(forKey: "paceWarningMinutes")
         paceWarningMinutes = savedWarning > 0 ? savedWarning : 30
@@ -427,46 +438,6 @@ final class UsageViewModel {
         return min(hoursToReset / proj, 1.0)
     }
 
-    /// Composed SF Symbol + text image used as the menu bar label.
-    ///
-    /// `MenuBarExtra` label blocks do not reliably render `HStack { Image; Text }` or
-    /// `Label(text, systemImage:)` — the icon renders but the text is clipped or hidden.
-    /// The only reliable approach is to composite both elements into a single `NSImage`.
-    /// The result is cached until the icon, text, color, or system appearance changes.
-    var menuBarImage: NSImage {
-        let icon = statusIcon
-        let text = statusText
-        let color = statusColor
-        let appearance = NSApp.effectiveAppearance.name.rawValue
-        let key = icon + text + color.description + appearance
-        if key == cachedMenuBarKey { return cachedMenuBarImage }
-        cachedMenuBarKey = key
-        cachedMenuBarImage = buildMenuBarImage(iconName: icon, text: text, color: color)
-        return cachedMenuBarImage
-    }
-
-    private func buildMenuBarImage(iconName: String, text: String, color: NSColor) -> NSImage {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [color, .labelColor]))
-        let symbolImage = NSImage(systemSymbolName: iconName, accessibilityDescription: nil)?
-            .withSymbolConfiguration(symbolConfig) ?? NSImage()
-        let symbolSize = symbolImage.size
-        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor]
-        let textSize = (text as NSString).size(withAttributes: attrs)
-        let spacing: CGFloat = 3
-        let totalWidth = symbolSize.width + spacing + textSize.width
-        let height = max(symbolSize.height, textSize.height)
-        let composed = NSImage(size: NSSize(width: totalWidth, height: height), flipped: false) { rect in
-            let iconY = (rect.height - symbolSize.height) / 2
-            symbolImage.draw(in: NSRect(x: 0, y: iconY, width: symbolSize.width, height: symbolSize.height))
-            let textY = (rect.height - textSize.height) / 2
-            (text as NSString).draw(at: NSPoint(x: symbolSize.width + spacing, y: textY), withAttributes: attrs)
-            return true
-        }
-        return composed
-    }
-
     // MARK: - Reset Detection
 
     /// Compares previous `resetsAt` timestamps to the new response to detect window resets.
@@ -572,7 +543,7 @@ final class UsageViewModel {
         func append(key: String, utilization: Double?) {
             guard let utilization else { return }
             var history = utilizationHistory[key] ?? []
-            if let last = history.last, utilization < last.1 - 20 {
+            if let last = history.last, last.1 - utilization > 20 || (utilization < 5 && last.1 >= 5) {
                 history = []
                 paceWarned.remove(key)
                 if let tid = paceToastIDs.removeValue(forKey: key) {
@@ -634,7 +605,7 @@ final class UsageViewModel {
     /// - Parameter key: The window key — `"five_hour"` or `"seven_day"`.
     func pace(for key: String) -> (rate: Double, projectedHours: Double?)? {
         guard let history = utilizationHistory[key] else { return nil }
-        return computePace(history: history)
+        return computePace(history: history, lambda: paceSmoothing.lambda)
     }
 
     private func appendDataPoint(_ response: UsageResponse) {
@@ -867,5 +838,71 @@ final class UsageViewModel {
         timer = Timer.publish(every: interval, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in self?.fetchUsage() }
+    }
+}
+
+// MARK: - Menu Bar Image
+
+private extension UsageViewModel {
+    var menuBarPaceText: String? {
+        guard showPaceMenuBar, isAuthenticated, usage != nil, !isDataStale else { return nil }
+        let key: String
+        switch menuBarWindow {
+        case .fiveHour: key = "five_hour"
+        case .sevenDay:  key = "seven_day"
+        }
+        guard let paceData = pace(for: key) else { return nil }
+        return paceData.rate < 10
+            ? String(format: "+%.1f%%/h", paceData.rate)
+            : "+\(Int(paceData.rate.rounded()))%/h"
+    }
+
+    var menuBarPaceColor: NSColor {
+        urgencyNSColor(displayedWindowPaceUrgency())
+    }
+
+    var menuBarImage: NSImage {
+        let icon = statusIcon
+        let text = statusText
+        let color = statusColor
+        let paceText = menuBarPaceText
+        let paceColor = menuBarPaceColor
+        let appearance = NSApp.effectiveAppearance.name.rawValue
+        let paceKey = paceText.map { $0 + paceColor.description } ?? ""
+        let key = icon + text + color.description + paceKey + appearance
+        if key == cachedMenuBarKey { return cachedMenuBarImage }
+        cachedMenuBarKey = key
+        cachedMenuBarImage = buildMenuBarImage(iconName: icon, text: text, color: color, paceText: paceText, paceColor: paceColor)
+        return cachedMenuBarImage
+    }
+
+    func buildMenuBarImage(iconName: String, text: String, color: NSColor, paceText: String? = nil, paceColor: NSColor = .labelColor) -> NSImage {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color, .labelColor]))
+        let symbolImage = NSImage(systemSymbolName: iconName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(symbolConfig) ?? NSImage()
+        let symbolSize = symbolImage.size
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor]
+        let textSize = (text as NSString).size(withAttributes: attrs)
+        let paceAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: paceColor]
+        let paceSize = paceText.map { ($0 as NSString).size(withAttributes: paceAttrs) } ?? .zero
+        let spacing: CGFloat = 3
+        let paceSpacing: CGFloat = paceText != nil ? 4 : 0
+        let totalWidth = symbolSize.width + spacing + textSize.width + paceSpacing + paceSize.width
+        let height = max(symbolSize.height, textSize.height)
+        let composed = NSImage(size: NSSize(width: totalWidth, height: height), flipped: false) { rect in
+            let iconY = (rect.height - symbolSize.height) / 2
+            symbolImage.draw(in: NSRect(x: 0, y: iconY, width: symbolSize.width, height: symbolSize.height))
+            let textY = (rect.height - textSize.height) / 2
+            (text as NSString).draw(at: NSPoint(x: symbolSize.width + spacing, y: textY), withAttributes: attrs)
+            if let paceText {
+                let paceX = symbolSize.width + spacing + textSize.width + paceSpacing
+                let paceY = (rect.height - paceSize.height) / 2
+                (paceText as NSString).draw(at: NSPoint(x: paceX, y: paceY), withAttributes: paceAttrs)
+            }
+            return true
+        }
+        return composed
     }
 }

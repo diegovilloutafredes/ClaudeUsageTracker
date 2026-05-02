@@ -18,20 +18,20 @@ func isNewerVersion(_ remote: String, than current: String) -> Bool {
 ///
 /// Uses exponentially-weighted linear regression over all history points so that
 /// recent consumption dominates the slope. Weight w_i = exp(λ · t_norm) where
-/// t_norm ∈ [0,1] runs from oldest to newest; λ=2 gives the newest point ~7× the
-/// weight of the oldest. This reacts to recent bursts faster than a simple
-/// first-to-last slope while remaining more stable than a very short endpoint window.
+/// t_norm ∈ [0,1] runs from oldest to newest. At the default λ=2 the newest point
+/// is ~7× the oldest; higher λ (Reactive) narrows focus to the last few minutes,
+/// lower λ (Stable) approaches a uniform average.
 ///
 /// Requires at least 15 seconds of elapsed history and 2 data points.
 /// Returns nil when the rate is negligible (≤ 0.1 %/hr) or data is insufficient.
-func computePace(history: [(Date, Double)]) -> (rate: Double, projectedHours: Double?)? {
+func computePace(history: [(Date, Double)], lambda: Double = 2.0) -> (rate: Double, projectedHours: Double?)? {
     guard history.count >= 2 else { return nil }
     let oldest = history.first!
     let newest = history.last!
     let elapsedSeconds = newest.0.timeIntervalSince(oldest.0)
     guard elapsedSeconds >= 15.0 else { return nil }
 
-    let λ = 2.0
+    let λ = lambda
     var W = 0.0, Sx = 0.0, Sy = 0.0, Sxx = 0.0, Sxy = 0.0
     for (date, util) in history {
         let xi   = date.timeIntervalSince(oldest.0) / 3600.0   // hours from oldest
@@ -212,6 +212,37 @@ struct UsageDataPoint: Codable, Identifiable {
     let fiveHourPace: Double?
     let sevenDayPace: Double?
     var id: Date { timestamp }
+}
+
+// MARK: - Pace Smoothing
+
+/// Controls how aggressively the pace regression weights recent readings over older ones.
+///
+/// Higher λ focuses on the most recent data (reactive to bursts, noisier);
+/// lower λ averages more evenly across the full history window (smoother, slower to react).
+enum PaceSmoothing: String, CaseIterable, Identifiable {
+    case reactive
+    case balanced
+    case stable
+
+    var id: String { rawValue }
+
+    /// Exponential decay factor for weighted least-squares regression.
+    var lambda: Double {
+        switch self {
+        case .reactive: return 3.0   // newest ~20× oldest — reacts in last few minutes
+        case .balanced: return 2.0   // newest ~7× oldest  — default
+        case .stable:   return 0.5   // newest ~1.6× oldest — near-uniform average
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .reactive: return String(localized: "Reactive")
+        case .balanced: return String(localized: "Balanced")
+        case .stable:   return String(localized: "Stable")
+        }
+    }
 }
 
 // MARK: - Menu Bar Display Option
