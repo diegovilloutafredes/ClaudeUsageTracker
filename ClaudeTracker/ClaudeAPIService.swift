@@ -11,6 +11,8 @@ import WebKit
 final class ClaudeAPIService: NSObject, WKNavigationDelegate, WKUIDelegate {
     /// The underlying web view, exposed so `LoginView` can embed it directly for in-app sign-in.
     let webView: WKWebView
+    /// Identifier of the `WKWebsiteDataStore` backing this service's cookie jar.
+    let dataStoreIdentifier: UUID
 
     private var isPageReady = false
     private var readyWaiters: [CheckedContinuation<Void, Error>] = []
@@ -21,13 +23,29 @@ final class ClaudeAPIService: NSObject, WKNavigationDelegate, WKUIDelegate {
     var onPopupRequested: ((WKWebView, WKWindowFeatures) -> Void)?
     var onPopupDismissed: (() -> Void)?
 
-    override init() {
+    /// Builds an API service backed by a per-identifier `WKWebsiteDataStore` so each account
+    /// keeps its cookies (and `sessionKey`) isolated from every other account.
+    init(dataStoreIdentifier: UUID) {
+        self.dataStoreIdentifier = dataStoreIdentifier
         let config = WKWebViewConfiguration()
-        config.websiteDataStore = .default()
+        config.websiteDataStore = WKWebsiteDataStore(forIdentifier: dataStoreIdentifier)
         self.webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 1, height: 1), configuration: config)
         super.init()
         self.webView.navigationDelegate = self
         self.webView.uiDelegate = self
+    }
+
+    /// Releases pollers and closes the popup. Call before dropping the service so the
+    /// embedded `WKWebView` is no longer using the data store (required before
+    /// `WKWebsiteDataStore.remove(forIdentifier:)`).
+    func tearDown() {
+        stopCookiePolling()
+        readyWaiters.forEach { $0.resume(throwing: APIError.networkError("torn down")) }
+        readyWaiters = []
+        popupWebView = nil
+        webView.stopLoading()
+        webView.navigationDelegate = nil
+        webView.uiDelegate = nil
     }
 
     // MARK: - Login Support

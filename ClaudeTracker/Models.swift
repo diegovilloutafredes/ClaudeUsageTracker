@@ -278,6 +278,105 @@ enum MenuBarWindow: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Multi-Account
+
+/// A locally tracked Claude account. Each account is backed by its own
+/// `WKWebsiteDataStore(forIdentifier:)` so cookies (including `sessionKey`) never collide.
+///
+/// `label`, `email`, and `subscriptionLabel` are populated from `/api/account` after
+/// the first successful fetch and may be `nil` immediately after the account is added.
+struct Account: Codable, Identifiable, Hashable {
+    let id: UUID
+    var label: String
+    var email: String?
+    var subscriptionLabel: String?
+    let dataStoreIdentifier: UUID
+    let addedAt: Date
+
+    init(id: UUID = UUID(),
+         label: String,
+         email: String? = nil,
+         subscriptionLabel: String? = nil,
+         dataStoreIdentifier: UUID = UUID(),
+         addedAt: Date = Date()) {
+        self.id = id
+        self.label = label
+        self.email = email
+        self.subscriptionLabel = subscriptionLabel
+        self.dataStoreIdentifier = dataStoreIdentifier
+        self.addedAt = addedAt
+    }
+}
+
+/// All per-account runtime state. The view model keeps a `[UUID: AccountState]` indexed by
+/// account id, so a fetch that captures its `accountID` at start always lands its result in the
+/// correct bucket — even if the user switches accounts mid-fetch. Not `Codable`: the fields
+/// that need persisting (`usageHistory`, account roster) are saved through dedicated paths.
+struct AccountState {
+    var usage: UsageResponse?
+    var error: String?
+    var lastUpdated: Date?
+    var accountInfo: AccountInfo?
+    /// Tracks the parsed `resetsAt` per window key. A reset is inferred when the new date is
+    /// > 1 hour later AND utilization drops below 5%.
+    var previousResetsAt: [String: Date] = [:]
+    /// Rolling 5-minute utilization history per window key, used by `computePace`.
+    var utilizationHistory: [String: [(Date, Double)]] = [:]
+    /// Window keys for which a pace alert has already fired in the current window period.
+    var paceWarned: Set<String> = []
+    /// Active pace-alert toast IDs keyed by window key, so they can be dismissed when pace
+    /// improves past the warning threshold.
+    var paceToastIDs: [String: UUID] = [:]
+    /// Throttles `usageHistory` snapshots to ≤1 every 5 minutes.
+    var lastHistoryTimestamp: Date? = nil
+    /// Persisted chart-history snapshots; survives relaunch via the `usageHistory.<id>` key.
+    var usageHistory: [UsageDataPoint] = []
+    /// Increments on every failed fetch; drives backoff in `scheduleNextPoll()`.
+    var consecutiveErrors: Int = 0
+    /// True after a 401 retry confirms the session is no longer valid; drives the empty-state
+    /// "sign in again" UX without forcing the user to remove and re-add the account.
+    var sessionExpired: Bool = false
+}
+
+/// UserDefaults-backed persistence for the account roster and the active selection.
+///
+/// `accounts` is stored as JSON-encoded `[Account]` under `"accounts"`.
+/// `activeAccountID` is stored as a UUID string under `"activeAccountID"` (or absent when nil).
+enum AccountStore {
+    static let accountsKey = "accounts"
+    static let activeAccountIDKey = "activeAccountID"
+
+    static func loadAccounts() -> [Account] {
+        guard let data = UserDefaults.standard.data(forKey: accountsKey),
+              let decoded = try? JSONDecoder().decode([Account].self, from: data) else { return [] }
+        return decoded
+    }
+
+    static func saveAccounts(_ accounts: [Account]) {
+        if let data = try? JSONEncoder().encode(accounts) {
+            UserDefaults.standard.set(data, forKey: accountsKey)
+        }
+    }
+
+    static func loadActiveID() -> UUID? {
+        guard let s = UserDefaults.standard.string(forKey: activeAccountIDKey) else { return nil }
+        return UUID(uuidString: s)
+    }
+
+    static func saveActiveID(_ id: UUID?) {
+        if let id {
+            UserDefaults.standard.set(id.uuidString, forKey: activeAccountIDKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: activeAccountIDKey)
+        }
+    }
+
+    /// UserDefaults key used to persist a single account's chart-history snapshots.
+    static func usageHistoryKey(for accountID: UUID) -> String {
+        "usageHistory.\(accountID.uuidString)"
+    }
+}
+
 /// A newer version discovered via the GitHub Releases API.
 struct UpdateInfo {
     let version: String

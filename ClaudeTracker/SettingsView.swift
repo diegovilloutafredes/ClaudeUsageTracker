@@ -4,6 +4,10 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var viewModel: UsageViewModel
 
+    @State private var pendingRemoval: Account? = nil
+    @State private var pendingRename: Account? = nil
+    @State private var renameDraft: String = ""
+
     var body: some View {
         let sf = NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
         let w  = (sf.width / 3).rounded()
@@ -20,53 +24,51 @@ struct SettingsView: View {
         .frame(minWidth: w, idealWidth: w, maxWidth: w)
         .fixedSize(horizontal: false, vertical: !viewModel.isAuthenticated)
         .background(SettingsWindowPositioner(targetWidth: w, isAuthenticated: viewModel.isAuthenticated))
+        .alert(
+            Text("Remove this account?"),
+            isPresented: Binding(
+                get: { pendingRemoval != nil },
+                set: { if !$0 { pendingRemoval = nil } }
+            ),
+            presenting: pendingRemoval
+        ) { account in
+            Button("Remove", role: .destructive) {
+                viewModel.removeAccount(account.id)
+                pendingRemoval = nil
+            }
+            Button("Cancel", role: .cancel) { pendingRemoval = nil }
+        } message: { account in
+            Text("Removes \(account.label) from this app and signs it out. The account itself is unaffected.")
+        }
+        .alert(
+            Text("Rename account"),
+            isPresented: Binding(
+                get: { pendingRename != nil },
+                set: { if !$0 { pendingRename = nil } }
+            ),
+            presenting: pendingRename
+        ) { account in
+            TextField("Name", text: $renameDraft)
+            Button("Save") {
+                let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    viewModel.renameAccount(account.id, to: trimmed)
+                }
+                pendingRename = nil
+            }
+            Button("Cancel", role: .cancel) { pendingRename = nil }
+        }
     }
 
     // MARK: - Account
 
     private var accountSection: some View {
         Section {
-            HStack(alignment: .center, spacing: 10) {
-                Circle()
-                    .fill(viewModel.isAuthenticated ? Color.green : Color.red)
-                    .frame(width: 8, height: 8)
-                    .accessibilityHidden(true)
-
-                if let info = viewModel.accountInfo {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text(info.displayName)
-                                .font(.subheadline)
-                            if let sub = info.subscriptionLabel {
-                                Text(sub)
-                                    .font(.caption2.weight(.semibold))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.purple.opacity(0.15), in: Capsule())
-                                    .foregroundStyle(Color.purple)
-                            }
-                        }
-                        Text(info.emailAddress)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
-                    Text(viewModel.isAuthenticated ? "Signed in" : "Not signed in")
-                        .font(.subheadline)
-                }
-
-                Spacer()
-
-                if viewModel.isAuthenticated {
-                    Button("Sign out") { viewModel.signOut() }
-                } else {
-                    Button("Sign in") {
-                        LoginWindowController.shared.open(
-                            apiService: viewModel.apiService,
-                            onSessionFound: viewModel.handleSessionFound
-                        )
-                    }
-                    .buttonStyle(.borderedProminent)
+            if viewModel.accounts.isEmpty {
+                emptyAccountRow
+            } else {
+                ForEach(viewModel.accounts) { account in
+                    accountRow(account)
                 }
             }
 
@@ -103,7 +105,103 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } header: {
-            Text("Account")
+            HStack {
+                Text("Account")
+                Spacer()
+                if !viewModel.accounts.isEmpty {
+                    Button {
+                        let acct = viewModel.addAccount()
+                        if let svc = viewModel.apiService {
+                            LoginWindowController.shared.open(
+                                apiService: svc,
+                                onSessionFound: viewModel.handleSessionFound,
+                                onCancel: { viewModel.cancelPendingAdd(acct) }
+                            )
+                        }
+                    } label: {
+                        Label("Add account", systemImage: "plus.circle")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .textCase(nil)
+                }
+            }
+        }
+    }
+
+    private var emptyAccountRow: some View {
+        HStack(spacing: 10) {
+            Circle().fill(Color.red).frame(width: 8, height: 8).accessibilityHidden(true)
+            Text("Not signed in").font(.subheadline)
+            Spacer()
+            Button("Sign in") {
+                let acct = viewModel.addAccount()
+                if let svc = viewModel.apiService {
+                    LoginWindowController.shared.open(
+                        apiService: svc,
+                        onSessionFound: viewModel.handleSessionFound,
+                        onCancel: { viewModel.cancelPendingAdd(acct) }
+                    )
+                }
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    @ViewBuilder
+    private func accountRow(_ account: Account) -> some View {
+        let isActive = (account.id == viewModel.activeAccountID)
+        HStack(alignment: .center, spacing: 10) {
+            Circle()
+                .fill(isActive ? Color.green : Color.secondary.opacity(0.4))
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(account.label)
+                        .font(.subheadline)
+                    if let sub = account.subscriptionLabel {
+                        Text(sub)
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.purple.opacity(0.15), in: Capsule())
+                            .foregroundStyle(Color.purple)
+                    }
+                }
+                if let email = account.email {
+                    Text(email)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            if !isActive {
+                Button("Switch") { viewModel.switchAccount(to: account.id) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+            Button {
+                renameDraft = account.label
+                pendingRename = account
+            } label: {
+                Image(systemName: "pencil")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .help(Text("Rename account"))
+            Button {
+                pendingRemoval = account
+            } label: {
+                Image(systemName: "trash")
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.borderless)
+            .help(Text("Sign out & remove"))
         }
     }
 
@@ -191,7 +289,10 @@ struct SettingsView: View {
             Toggle("Show charts tab", isOn: $viewModel.showChartsTab)
                 .toggleStyle(GreenSwitchStyle())
 
-            Toggle("Show pace in Usage tab", isOn: $viewModel.showPace)
+            Toggle("Show Sonnet usage", isOn: $viewModel.showSonnetWindow)
+                .toggleStyle(GreenSwitchStyle())
+
+            Toggle("Show pace in usage tab", isOn: $viewModel.showPace)
                 .toggleStyle(GreenSwitchStyle())
 
             Toggle("Show pace in menu bar", isOn: $viewModel.showPaceMenuBar)
@@ -368,6 +469,12 @@ private struct SettingsWindowPositioner: NSViewRepresentable {
     let targetWidth: CGFloat
     let isAuthenticated: Bool
 
+    final class Coordinator {
+        var closeObserver: NSObjectProtocol?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         DispatchQueue.main.async {
@@ -375,8 +482,22 @@ private struct SettingsWindowPositioner: NSViewRepresentable {
             let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
             window.title = String(format: String(localized: "Settings · v%@"), version)
             Self.reframe(window: window, screen: screen, targetWidth: targetWidth, isAuthenticated: isAuthenticated)
+            // Promote the menu bar app to .regular while Settings is visible so Cmd+Tab finds
+            // the app and the window can be brought to front. A dock icon appears as a side
+            // effect — unavoidable; macOS has no "Cmd+Tab only" activation policy.
+            NSApp.setActivationPolicy(.regular)
             window.makeKeyAndOrderFront(nil)
-            NSApp.activate()
+            NSApp.activate(ignoringOtherApps: true)
+
+            if context.coordinator.closeObserver == nil {
+                context.coordinator.closeObserver = NotificationCenter.default.addObserver(
+                    forName: NSWindow.willCloseNotification,
+                    object: window,
+                    queue: .main
+                ) { _ in
+                    NSApp.setActivationPolicy(.accessory)
+                }
+            }
         }
         return view
     }
@@ -385,6 +506,13 @@ private struct SettingsWindowPositioner: NSViewRepresentable {
         DispatchQueue.main.async {
             guard let window = nsView.window, let screen = NSScreen.main else { return }
             Self.reframe(window: window, screen: screen, targetWidth: targetWidth, isAuthenticated: isAuthenticated)
+        }
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        if let obs = coordinator.closeObserver {
+            NotificationCenter.default.removeObserver(obs)
+            coordinator.closeObserver = nil
         }
     }
 

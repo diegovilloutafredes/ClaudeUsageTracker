@@ -97,15 +97,72 @@ struct MenuBarView: View {
             Text("Claude Tracker")
                 .font(sf(14, .semibold))
             Spacer()
-            if let sub = viewModel.accountInfo?.subscriptionLabel {
-                Text(sub)
-                    .font(sf(10, .semibold))
-                    .padding(.horizontal, 6 * s)
-                    .padding(.vertical, 2 * s)
-                    .background(Color.purple.opacity(0.15), in: Capsule())
-                    .foregroundStyle(Color.purple)
+            if viewModel.accounts.count >= 2 {
+                accountPicker
+            } else if let sub = viewModel.accountInfo?.subscriptionLabel {
+                subscriptionBadge(sub)
             }
         }
+    }
+
+    /// Multi-account chevron picker. Shown only when 2+ accounts exist; single-account users
+    /// see the original subscription badge instead so the UI is unchanged for them.
+    private var accountPicker: some View {
+        Menu {
+            ForEach(viewModel.accounts) { account in
+                Button {
+                    viewModel.switchAccount(to: account.id)
+                } label: {
+                    if account.id == viewModel.activeAccountID {
+                        Label(account.label, systemImage: "checkmark")
+                    } else {
+                        Text(account.label)
+                    }
+                }
+            }
+            Divider()
+            Button("Add account") {
+                let acct = viewModel.addAccount()
+                if let svc = viewModel.apiService {
+                    LoginWindowController.shared.open(
+                        apiService: svc,
+                        onSessionFound: viewModel.handleSessionFound,
+                        onCancel: { viewModel.cancelPendingAdd(acct) }
+                    )
+                }
+            }
+        } label: {
+            HStack(spacing: 4 * s) {
+                if let active = viewModel.accounts.first(where: { $0.id == viewModel.activeAccountID }) {
+                    Text(active.label)
+                        .font(sf(10, .semibold))
+                        .lineLimit(1)
+                }
+                if let sub = viewModel.accountInfo?.subscriptionLabel {
+                    Text(sub)
+                        .font(sf(10, .semibold))
+                        .padding(.horizontal, 6 * s)
+                        .padding(.vertical, 2 * s)
+                        .background(Color.purple.opacity(0.15), in: Capsule())
+                        .foregroundStyle(Color.purple)
+                }
+                Image(systemName: "chevron.down")
+                    .font(sf(9, .semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+    }
+
+    private func subscriptionBadge(_ label: String) -> some View {
+        Text(label)
+            .font(sf(10, .semibold))
+            .padding(.horizontal, 6 * s)
+            .padding(.vertical, 2 * s)
+            .background(Color.purple.opacity(0.15), in: Capsule())
+            .foregroundStyle(Color.purple)
     }
 
     // MARK: - Tab Selector
@@ -162,12 +219,16 @@ struct MenuBarView: View {
                 .foregroundStyle(.secondary)
 
             Button {
-                LoginWindowController.shared.open(
-                    apiService: viewModel.apiService,
-                    onSessionFound: viewModel.handleSessionFound
-                )
+                let acct = viewModel.addAccount()
+                if let svc = viewModel.apiService {
+                    LoginWindowController.shared.open(
+                        apiService: svc,
+                        onSessionFound: viewModel.handleSessionFound,
+                        onCancel: { viewModel.cancelPendingAdd(acct) }
+                    )
+                }
             } label: {
-                Label("Sign in to Claude", systemImage: "globe")
+                Label("Add a Claude account", systemImage: "globe")
             }
             .controlSize(.large)
             .buttonStyle(.borderedProminent)
@@ -198,6 +259,17 @@ struct MenuBarView: View {
             ForEach(usage.allWindows, id: \.0) { windowKey, window in
                 windowRow(windowKey: windowKey, window: window)
             }
+            if viewModel.showSonnetWindow, let sonnet = usage.sevenDaySonnet {
+                UsageWindowView(
+                    title: String(localized: "7-Day Sonnet"),
+                    window: sonnet,
+                    paceRate: nil,
+                    projectedHours: nil,
+                    scale: s,
+                    paceRateUnit: viewModel.paceRateUnit,
+                    isStale: viewModel.isWindowStale(sonnet)
+                )
+            }
         }
 
         if let extra = usage.extraUsage, extra.isEnabled {
@@ -212,10 +284,12 @@ struct MenuBarView: View {
                 .font(sf(12))
 
             Button("Sign in again") {
-                LoginWindowController.shared.open(
-                    apiService: viewModel.apiService,
-                    onSessionFound: viewModel.handleSessionFound
-                )
+                if let svc = viewModel.apiService {
+                    LoginWindowController.shared.open(
+                        apiService: svc,
+                        onSessionFound: viewModel.handleSessionFound
+                    )
+                }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -664,6 +738,16 @@ struct MenuBarView: View {
             Spacer()
             Button {
                 openSettings()
+                // openSettings() opens the Settings scene window but does NOT bring it forward
+                // when it's already open. Manually find the existing Settings NSWindow and
+                // order it front so re-clicking the button reliably surfaces it.
+                DispatchQueue.main.async {
+                    if let win = NSApp.windows.first(where: { $0.title.hasPrefix("Settings") }) {
+                        NSApp.setActivationPolicy(.regular)
+                        win.makeKeyAndOrderFront(nil)
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
+                }
             } label: {
                 Text("Settings")
                     .font(sf(11))
@@ -681,24 +765,85 @@ struct MenuBarView: View {
 
 // MARK: - Popover Resizer
 
-/// Forces the MenuBarExtra NSPanel to match the SwiftUI content height whenever it changes.
-/// SwiftUI's fixedSize modifier alone does not resize the panel after the first render, and
-/// updateNSView is only called when the struct's stored properties change — so height must
-/// be passed explicitly to guarantee a call on every tab switch.
+/// Forces the MenuBarExtra NSPanel to match the SwiftUI content height whenever it changes,
+/// and snaps the panel back to its first observed `(x, top-y)` on every move.
+///
+/// AppKit silently re-anchors the menu bar popover to the status item's frame whenever the
+/// status item's image width changes. The image width changes constantly here — utilization
+/// digits go from "5%" to "100%", the pace badge appears/disappears, and account switches
+/// can trigger several rapid updates. Each anchor change drags the popover sideways even
+/// though the user hasn't done anything to warrant it.
+///
+/// We can't easily prevent AppKit from moving the window, but we can listen for
+/// `NSWindow.didMoveNotification` and immediately snap the frame back to the pinned spot.
+/// The snap is fast enough to be visually invisible in practice.
 private struct PopoverResizer: NSViewRepresentable {
     let height: CGFloat
 
+    final class Coordinator {
+        var pinnedX: CGFloat?
+        var pinnedTop: CGFloat?
+        var moveObserver: NSObjectProtocol?
+        /// Reentrancy guard: our own `setFrame` triggers `didMoveNotification`, which would
+        /// recurse into the snap-back path and cause an infinite ping-pong.
+        var isSnapping = false
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
     func makeNSView(context: Context) -> NSView { NSView() }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        if let obs = coordinator.moveObserver {
+            NotificationCenter.default.removeObserver(obs)
+            coordinator.moveObserver = nil
+        }
+    }
 
     func updateNSView(_ nsView: NSView, context: Context) {
         guard height > 10 else { return }
         DispatchQueue.main.async {
             guard let window = nsView.window else { return }
-            guard abs(window.frame.height - height) > 1 else { return }
-            var frame = window.frame
-            frame.origin.y = frame.maxY - height
-            frame.size.height = height
-            window.setFrame(frame, display: true, animate: false)
+
+            // Capture the panel's natural anchor on first appearance.
+            if context.coordinator.pinnedX == nil {
+                context.coordinator.pinnedX = window.frame.origin.x
+                context.coordinator.pinnedTop = window.frame.maxY
+            }
+
+            // Install the move observer once. It snaps the window back any time AppKit
+            // (or a status-item resize) drags it away from the pinned position.
+            if context.coordinator.moveObserver == nil {
+                let coord = context.coordinator
+                context.coordinator.moveObserver = NotificationCenter.default.addObserver(
+                    forName: NSWindow.didMoveNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak window] _ in
+                    guard let window else { return }
+                    guard !coord.isSnapping,
+                          let pinX = coord.pinnedX,
+                          let pinTop = coord.pinnedTop else { return }
+                    let dx = abs(window.frame.origin.x - pinX)
+                    let dyTop = abs(window.frame.maxY - pinTop)
+                    guard dx > 0.5 || dyTop > 0.5 else { return }
+                    coord.isSnapping = true
+                    var snap = window.frame
+                    snap.origin.x = pinX
+                    snap.origin.y = pinTop - snap.height
+                    window.setFrame(snap, display: true, animate: false)
+                    coord.isSnapping = false
+                }
+            }
+
+            guard let pinX = context.coordinator.pinnedX,
+                  let pinTop = context.coordinator.pinnedTop else { return }
+            let needsResize = abs(window.frame.height - height) > 1
+            let needsReposition = abs(window.frame.origin.x - pinX) > 1 || abs(window.frame.maxY - pinTop) > 1
+            guard needsResize || needsReposition else { return }
+            context.coordinator.isSnapping = true
+            let newFrame = CGRect(x: pinX, y: pinTop - height, width: window.frame.width, height: height)
+            window.setFrame(newFrame, display: true, animate: false)
+            context.coordinator.isSnapping = false
         }
     }
 }

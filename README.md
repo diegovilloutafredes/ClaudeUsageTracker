@@ -9,6 +9,8 @@ A macOS menu bar app that shows your [Claude AI](https://claude.ai) usage limits
 ## Features
 
 - Live 5-Hour and 7-Day utilization bars with color-coded thresholds (green / orange / red)
+- **7-Day Sonnet** sub-window bar (toggleable in Settings) for Max users tracking Sonnet-specific consumption
+- **Multi-account** — sign in to multiple Claude accounts and switch between them from the popover header; each account is isolated in its own browser session (no cookie collisions); per-account chart history and pace state
 - Reset countdowns with relative time display ("resets in 3 hours")
 - Menu bar icon showing the selected window's utilization percentage; icon and badge use a continuous green → yellow → orange → red urgency gradient
 - Subscription badge (Pro, Max 5x, Max 20x, Team, Enterprise)
@@ -77,28 +79,30 @@ make release \
 ### First launch
 
 1. Click the menu bar icon (shows a percentage, or `--` when not signed in)
-2. Click **Sign in to Claude** — a browser window opens with claude.ai
+2. Click **Add a Claude account** — a browser window opens with claude.ai
 3. Sign in normally; the app detects the session cookie automatically
 4. The window closes and usage data loads within a few seconds
+
+To add a second account, open the popover and click the chevron next to the header → **Add account**. Switching between accounts pivots the menu bar label, popover content, and charts to the selected account; each account's polling, pace history, and reset notifications are tracked independently.
 
 ## How it works
 
 Claude.ai uses Cloudflare bot-detection that blocks plain `URLSession` requests. The app loads `claude.ai` in a hidden `WKWebView` and issues all API calls via `callAsyncJavaScript`. Requests originate from a real browser context with the correct cookies, headers, and TLS fingerprint — the same way the web app works.
 
-Authentication is handled by the shared WKWebView cookie store. Signing in once persists the session across relaunches until you explicitly sign out.
+Each Claude account gets its own `WKWebsiteDataStore(forIdentifier:)`, so cookies (including `sessionKey`) are fully isolated per account. Adding a second account does not log out the first. Sign-in persists across relaunches per account.
 
 ## Architecture
 
 | File | Responsibility |
 |---|---|
 | `ClaudeTrackerApp.swift` | App entry point, `MenuBarExtra` scene, composed menu bar image |
-| `ClaudeAPIService.swift` | Hidden `WKWebView` for API calls; login page loading and cookie polling |
-| `UsageViewModel.swift` | Published state, polling timer, UserDefaults persistence, notification dispatch, auto-update, stale data detection |
-| `Models.swift` | Codable structs for API responses; `MenuBarWindow` display enum; `UpdateInfo`; `computePace()` |
+| `ClaudeAPIService.swift` | Hidden `WKWebView` for API calls (per-account `WKWebsiteDataStore(forIdentifier:)`); login page loading and cookie polling |
+| `UsageViewModel.swift` | Published state, polling timer, per-account state buckets, UserDefaults persistence, notification dispatch, auto-update, stale data detection, account add/switch/remove lifecycle |
+| `Models.swift` | Codable structs for API responses; `Account` + `AccountStore` + per-account `AccountState`; `MenuBarWindow` display enum; `UpdateInfo`; `computePace()` |
 | `LoginView.swift` | `NSViewRepresentable` wrapping the API web view; `LoginWindowController` |
 | `ToastWindowController.swift` | Floating `NSPanel`-based toast, positioned near the top-right corner |
-| `MenuBarView.swift` | Popover content — scalable progress bars, reset countdowns, charts tab, update banner |
-| `SettingsView.swift` | Account status, update checker, popup scale, notification and refresh settings |
+| `MenuBarView.swift` | Popover content — scalable progress bars (incl. Sonnet sub-window), reset countdowns, charts tab, update banner, account picker |
+| `SettingsView.swift` | Accounts list (rename / switch / remove), update checker, popup scale, notification and refresh settings |
 | `AppLogger.swift` | Rolling file logger (`~/Library/Logs/ClaudeTracker/`); also writes to `os.log` |
 
 ## Disclaimer

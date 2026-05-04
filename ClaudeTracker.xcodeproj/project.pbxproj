@@ -17,6 +17,7 @@
 		AA0000000000000000000008 /* ToastWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000011 /* ToastWindowController.swift */; };
 		AA0000000000000000000009 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000012 /* Localizable.xcstrings */; };
 		AA0000000000000000000012 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000016 /* AppLogger.swift */; };
+		AA0000000000000000000013 /* UsageViewModelMenuBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000017 /* UsageViewModelMenuBar.swift */; };
 		AA0000000000000000000010 /* ClaudeTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000014 /* ClaudeTrackerTests.swift */; };
 		AA0000000000000000000011 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000015 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -45,6 +46,7 @@
 		BB0000000000000000000011 /* ToastWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastWindowController.swift; sourceTree = "<group>"; };
 		BB0000000000000000000012 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		BB0000000000000000000016 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
+		BB0000000000000000000017 /* UsageViewModelMenuBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageViewModelMenuBar.swift; sourceTree = "<group>"; };
 		BB0000000000000000000013 /* ClaudeTrackerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClaudeTrackerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB0000000000000000000014 /* ClaudeTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeTrackerTests.swift; sourceTree = "<group>"; };
 		BB0000000000000000000015 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -96,6 +98,7 @@
 				BB0000000000000000000002 /* Models.swift */,
 				BB0000000000000000000003 /* ClaudeAPIService.swift */,
 				BB0000000000000000000004 /* UsageViewModel.swift */,
+				BB0000000000000000000017 /* UsageViewModelMenuBar.swift */,
 				BB0000000000000000000005 /* MenuBarView.swift */,
 				BB0000000000000000000006 /* SettingsView.swift */,
 				BB0000000000000000000010 /* LoginView.swift */,
@@ -202,6 +205,7 @@
 				AA0000000000000000000002 /* Models.swift in Sources */,
 				AA0000000000000000000003 /* ClaudeAPIService.swift in Sources */,
 				AA0000000000000000000004 /* UsageViewModel.swift in Sources */,
+				AA0000000000000000000013 /* UsageViewModelMenuBar.swift in Sources */,
 				AA0000000000000000000005 /* MenuBarView.swift in Sources */,
 				AA0000000000000000000006 /* SettingsView.swift in Sources */,
 				AA0000000000000000000007 /* LoginView.swift in Sources */,

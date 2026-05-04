@@ -111,6 +111,17 @@
         }
       }
     },
+    "7-Day Sonnet" : {
+      "comment" : "Sonnet 7-day sub-window name shown as a third progress bar in the popover",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonnet 7 días"
+          }
+        }
+      }
+    },
     "7-Day Window" : {
       "comment" : "7-day rate-limit window name",
       "localizations" : {
@@ -129,6 +140,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Reinicio de ventana de 7 días"
+          }
+        }
+      }
+    },
+    "Add a Claude account" : {
+      "comment" : "Empty-state button label — opens the login window for a new account",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agregar una cuenta de Claude"
+          }
+        }
+      }
+    },
+    "Add account" : {
+      "comment" : "Account picker entry — adds an additional account",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agregar cuenta"
           }
         }
       }
@@ -228,6 +261,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Verificando…"
+          }
+        }
+      }
+    },
+    "Claude account" : {
+      "comment" : "Placeholder label for a newly added account before /api/account resolves the real display name",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuenta de Claude"
           }
         }
       }
@@ -639,6 +683,72 @@
         }
       }
     },
+    "Remove" : {
+      "comment" : "Destructive action button in the remove-account confirmation alert",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar"
+          }
+        }
+      }
+    },
+    "Rename account" : {
+      "comment" : "Rename account alert title and pencil button tooltip",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renombrar cuenta"
+          }
+        }
+      }
+    },
+    "Save" : {
+      "comment" : "Save button in rename account alert",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar"
+          }
+        }
+      }
+    },
+    "Name" : {
+      "comment" : "Placeholder for the rename TextField",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nombre"
+          }
+        }
+      }
+    },
+    "Remove this account?" : {
+      "comment" : "Title of the remove-account confirmation alert",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar esta cuenta?"
+          }
+        }
+      }
+    },
+    "Removes %@ from this app and signs it out. The account itself is unaffected." : {
+      "comment" : "Body of the remove-account confirmation alert; %@ is the account label",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elimina %@ de esta app y cierra su sesión. La cuenta en Claude no se ve afectada."
+          }
+        }
+      }
+    },
     "Refresh Interval" : {
       "comment" : "Settings section header for refresh interval",
       "localizations" : {
@@ -738,6 +848,17 @@
         }
       }
     },
+    "Show pace in usage tab" : {
+      "comment" : "Toggle in Settings → Display section",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar ritmo en pestaña de uso"
+          }
+        }
+      }
+    },
     "Show pace indicator" : {
       "comment" : "Toggle to show or hide pace line in usage windows",
       "localizations" : {
@@ -745,6 +866,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mostrar indicador de ritmo"
+          }
+        }
+      }
+    },
+    "Show Sonnet usage" : {
+      "comment" : "Settings toggle to show or hide the Sonnet 7-day sub-window row in the Usage tab",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar uso de Sonnet"
           }
         }
       }
@@ -789,6 +921,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Inicia sesión en tu cuenta de Claude. La sesión se capturará automáticamente."
+          }
+        }
+      }
+    },
+    "Sign out & remove" : {
+      "comment" : "Tooltip for the trash icon in the Settings Accounts list",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cerrar sesión y eliminar"
+          }
+        }
+      }
+    },
+    "Switch" : {
+      "comment" : "Button to make a different account the active one",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar"
           }
         }
       }

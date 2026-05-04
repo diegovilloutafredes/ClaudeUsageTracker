@@ -30,12 +30,48 @@ final class UsageViewModel {
             UserDefaults.standard.set(menuBarWindow.rawValue, forKey: "menuBarWindow")
         }
     }
-    var usage: UsageResponse?
-    var error: String?
     var isLoading = false
-    var lastUpdated: Date?
-    var isAuthenticated = false
-    var accountInfo: AccountInfo?
+
+    // MARK: - Multi-Account State
+
+    /// All Claude accounts the user has added. Persisted via `AccountStore`.
+    var accounts: [Account] = []
+    /// UUID of the active account, or nil when the roster is empty. Persisted via `AccountStore`.
+    var activeAccountID: UUID? = nil
+    /// Per-account state buckets. Each fetch captures its `accountID` at start and writes to
+    /// the corresponding bucket so the result lands in the right account even if the user
+    /// switched accounts mid-fetch.
+    var statesByAccount: [UUID: AccountState] = [:]
+    /// True while the one-shot first-launch migration is copying the legacy `.default()`
+    /// session into a per-identifier data store. The popover shows a loading state while true.
+    var isMigrating: Bool = false
+
+    /// Active account's last fetched usage response. Read-only — fetch path writes to the
+    /// per-account bucket directly so a mid-fetch account switch can't cross-contaminate state.
+    var usage: UsageResponse? { activeState?.usage }
+    /// Active account's last error message.
+    var error: String? {
+        get { activeState?.error }
+        set {
+            guard let id = activeAccountID else { return }
+            statesByAccount[id, default: .init()].error = newValue
+        }
+    }
+    /// Active account's last successful fetch timestamp.
+    var lastUpdated: Date? { activeState?.lastUpdated }
+    /// Active account's account profile (display name, email, subscription label).
+    var accountInfo: AccountInfo? { activeState?.accountInfo }
+    /// True when an account is active and its session is healthy. False during migration,
+    /// when no accounts exist, or when a 401 marked the active session expired.
+    var isAuthenticated: Bool {
+        guard !isMigrating, let id = activeAccountID else { return false }
+        return statesByAccount[id]?.sessionExpired != true
+    }
+
+    /// Convenience: per-account bucket for the active account.
+    private var activeState: AccountState? {
+        activeAccountID.flatMap { statesByAccount[$0] }
+    }
 
     // MARK: Notification preferences
 
@@ -104,21 +140,25 @@ final class UsageViewModel {
     var popupScale: Double = 1.0 {
         didSet { guard popupScale != oldValue else { return }; UserDefaults.standard.set(popupScale, forKey: "popupScale") }
     }
-    /// Historical utilization snapshots, sampled at most once per 5 minutes, for the Charts tab.
-    var usageHistory: [UsageDataPoint] = [] {
-        didSet {
-            if let data = try? JSONEncoder().encode(usageHistory) {
-                UserDefaults.standard.set(data, forKey: "usageHistory")
-            }
-        }
+    /// Historical utilization snapshots for the active account's Chart tab.
+    /// Per-account storage; persisted via `usageHistory.<accountID>` UserDefaults key.
+    var usageHistory: [UsageDataPoint] {
+        activeState?.usageHistory ?? []
     }
     /// Whether the Charts tab is shown in the popover.
     var showChartsTab: Bool = true {
         didSet { guard showChartsTab != oldValue else { return }; UserDefaults.standard.set(showChartsTab, forKey: "showChartsTab") }
     }
+    /// Whether the Sonnet 7-day sub-window is shown as a third progress bar in the popover.
+    var showSonnetWindow: Bool = true {
+        didSet { guard showSonnetWindow != oldValue else { return }; UserDefaults.standard.set(showSonnetWindow, forKey: "showSonnetWindow") }
+    }
 
     @ObservationIgnored private var isInitialized = false
-    @ObservationIgnored let apiService = ClaudeAPIService()
+    /// API service for the active account. nil before the first account is built or during migration.
+    /// Public name kept as `apiService` so existing call sites compile; `var` because the service
+    /// is rebuilt against a different `WKWebsiteDataStore` whenever the active account changes.
+    @ObservationIgnored var apiService: ClaudeAPIService?
     @ObservationIgnored private var timer: Task<Void, Never>?
     @ObservationIgnored private var updateCheckTimer: AnyCancellable?
     @ObservationIgnored private var appearanceCancellable: AnyCancellable?
@@ -133,21 +173,10 @@ final class UsageViewModel {
         if h < 24 { return "Checks every ~\(Int(h))h — on launch and wake" }
         return "Checks every ~\(max(1, Int((h / 24).rounded())))d — on launch and wake"
     }
-    /// Increments on every failed fetch; drives backoff in `scheduleNextPoll()`.
-    private var consecutiveErrors = 0
-    /// Tracks the parsed `resetsAt` date seen in the previous fetch for each window key.
-    /// A reset is inferred when the new date is > 1 hour later AND utilization drops below 5 %.
-    private var previousResetsAt: [String: Date] = [:]
-    /// Avoids rebuilding `menuBarImage` when neither the icon name nor the status text has changed.
-    private var cachedMenuBarKey = ""
-    private var cachedMenuBarImage = NSImage()
-    /// Rolling utilization history per window key, used to compute consumption pace.
-    private var utilizationHistory: [String: [(Date, Double)]] = [:]
-    /// Window keys for which a pace alert has already fired in the current window period.
-    private var paceWarned: Set<String> = []
-    /// Toast IDs for active pace alerts, keyed by window key, so they can be dismissed when pace improves.
-    private var paceToastIDs: [String: UUID] = [:]
-    private var lastHistoryTimestamp: Date? = nil
+    /// Avoids rebuilding `menuBarImage` when neither the icon name nor the status text has
+    /// changed. Internal so the `UsageViewModelMenuBar.swift` extension can read/write.
+    var cachedMenuBarKey = ""
+    var cachedMenuBarImage = NSImage()
 
     init() {
         if let savedWindow = UserDefaults.standard.string(forKey: "menuBarWindow"),
@@ -195,10 +224,9 @@ final class UsageViewModel {
         popupScale = savedPopupScale > 0 ? savedPopupScale : 1.0
 
         showChartsTab = UserDefaults.standard.object(forKey: "showChartsTab") as? Bool ?? true
-        if let historyData = UserDefaults.standard.data(forKey: "usageHistory"),
-           let decoded = try? JSONDecoder().decode([UsageDataPoint].self, from: historyData) {
-            usageHistory = decoded
-        }
+        showSonnetWindow = UserDefaults.standard.object(forKey: "showSonnetWindow") as? Bool ?? true
+        // Legacy `usageHistory` (single-account) is migrated into the per-account namespace
+        // by `migrateLegacySessionIfPresent`; do not load it here.
 
         autoUpdate = UserDefaults.standard.object(forKey: "autoUpdate") as? Bool ?? false
         lastNotifiedUpdateVersion = UserDefaults.standard.string(forKey: "lastNotifiedUpdateVersion") ?? ""
@@ -220,89 +248,307 @@ final class UsageViewModel {
             }
         }
 
-        checkExistingSession()
+        loadAccountsAndStartActive()
         Task { try? await Task.sleep(for: .seconds(10)); checkForUpdates() }
         schedulePeriodicUpdateCheck()
 
-        appearanceCancellable = NSApp.publisher(for: \.effectiveAppearance)
-            .dropFirst()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                self.cachedMenuBarKey = ""
-            }
-    }
-
-    // MARK: - Session
-
-    /// Checks the shared WKWebView cookie store for an existing session without requiring sign-in.
-    ///
-    /// Called at launch so users who authenticated in a previous session bypass the sign-in prompt.
-    func checkExistingSession() {
-        WKWebsiteDataStore.default().httpCookieStore.getAllCookies { [weak self] cookies in
-            let hasSession = cookies.contains { $0.name == "sessionKey" && $0.domain.contains("claude.ai") }
-            DispatchQueue.main.async {
-                self?.isAuthenticated = hasSession
-                if hasSession { self?.startSession() }
-            }
+        // `NSApp` is nil at this point on macOS 26 because `UsageViewModel` is allocated as a
+        // `@State` initializer inside `ClaudeTrackerApp.init`, before `NSApplication.shared`
+        // exists. Defer the appearance subscription onto the main queue so it lands after the
+        // app is up. (Implicit unwrap of `NSApp` here used to work on earlier macOS versions.)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.appearanceCancellable = NSApp.publisher(for: \.effectiveAppearance)
+                .dropFirst()
+                .receive(on: RunLoop.main)
+                .sink { [weak self] _ in
+                    guard let self else { return }
+                    self.cachedMenuBarKey = ""
+                }
         }
     }
 
-    /// Called by the login flow once a session cookie has been detected.
-    func handleSessionFound(_ key: String) {
-        isAuthenticated = true
-        error = nil
+    // MARK: - Multi-Account Lifecycle
+
+    /// Loads the persisted account roster and, if there's an active account, builds its
+    /// API service and starts polling. If no accounts exist, runs a one-shot migration to
+    /// import any legacy `.default()` session into a per-identifier data store.
+    func loadAccountsAndStartActive() {
+        accounts = AccountStore.loadAccounts()
+        activeAccountID = AccountStore.loadActiveID()
+
+        // Bootstrap state buckets for every known account; load each account's chart history.
+        for acct in accounts {
+            var s = statesByAccount[acct.id] ?? AccountState()
+            s.usageHistory = loadUsageHistory(for: acct.id)
+            s.accountInfo = nil  // will be refreshed on next /api/account fetch
+            statesByAccount[acct.id] = s
+        }
+
+        if accounts.isEmpty, UserDefaults.standard.integer(forKey: "accountsMigrationVersion") < 1 {
+            isMigrating = true
+            Task { [weak self] in await self?.migrateLegacySessionIfPresent() }
+            return
+        }
+
+        guard let id = activeAccountID, let acct = accounts.first(where: { $0.id == id }) else {
+            // Roster exists but active is invalid — pick the first.
+            if let first = accounts.first {
+                activeAccountID = first.id
+                AccountStore.saveActiveID(first.id)
+                buildActiveService(for: first)
+                startSession()
+            }
+            return
+        }
+        buildActiveService(for: acct)
         startSession()
     }
 
-    /// Loads account info and starts the polling timer.
+    /// Tears down the previous service if any, then constructs a fresh `ClaudeAPIService`
+    /// against the given account's data store identifier. Resets the menu bar image cache so
+    /// a fresh active-account label renders immediately.
+    private func buildActiveService(for account: Account) {
+        apiService?.tearDown()
+        apiService = ClaudeAPIService(dataStoreIdentifier: account.dataStoreIdentifier)
+        cachedMenuBarKey = ""
+    }
+
+    /// Called by the login flow once a session cookie has been detected for the active account.
+    func handleSessionFound(_ key: String) {
+        guard let id = activeAccountID else { return }
+        statesByAccount[id, default: .init()].error = nil
+        statesByAccount[id, default: .init()].sessionExpired = false
+        startSession()
+    }
+
+    /// Loads account info for the active account and starts polling.
     func startSession() {
         Task { [weak self] in
-            guard let self else { return }
-            if let info = try? await apiService.fetchAccountInfo() {
-                accountInfo = info
+            guard let self, let svc = apiService, let id = activeAccountID else { return }
+            if let info = try? await svc.fetchAccountInfo() {
+                statesByAccount[id, default: .init()].accountInfo = info
+                applyAccountInfoToRoster(id: id, info: info)
             }
             startPolling()
         }
     }
 
-    /// Signs out by cancelling in-flight requests, clearing all state, and deleting claude.ai cookies.
-    func signOut() {
-        fetchTask?.cancel()
-        fetchTask = nil
+    /// Switches the active account: cancels in-flight work, dismisses any toasts that
+    /// belonged to the outgoing account, persists the new selection, and starts polling
+    /// against the new account's data store.
+    func switchAccount(to id: UUID) {
+        guard id != activeAccountID, let acct = accounts.first(where: { $0.id == id }) else { return }
+        fetchTask?.cancel(); fetchTask = nil
+        timer?.cancel(); timer = nil
         isLoading = false
-        timer?.cancel()
-        timer = nil
-        usage = nil
-        error = nil
-        accountInfo = nil
-        isAuthenticated = false
-        previousResetsAt = [:]
-        utilizationHistory = [:]
-        paceWarned = []
-        apiService.clearCache()
-        let store = WKWebsiteDataStore.default()
-        store.httpCookieStore.getAllCookies { cookies in
-            for cookie in cookies where cookie.domain.contains("claude.ai") {
-                store.httpCookieStore.delete(cookie)
+        // Dismiss any active pace toasts owned by the outgoing account.
+        if let outgoingID = activeAccountID,
+           let outgoing = statesByAccount[outgoingID] {
+            for tid in outgoing.paceToastIDs.values {
+                ToastWindowController.shared.dismiss(id: tid)
+            }
+            statesByAccount[outgoingID]?.paceToastIDs.removeAll()
+        }
+        activeAccountID = id
+        AccountStore.saveActiveID(id)
+        buildActiveService(for: acct)
+        AppLogger.shared.info("switched active account to \(acct.label) (\(id.uuidString.prefix(8)))")
+        startSession()
+    }
+
+    /// Adds a new account record (with a placeholder label until `/api/account` resolves),
+    /// makes it active, and opens the login window against its fresh per-identifier data store.
+    /// If the user closes the login window without signing in, call `cancelPendingAdd(_:)` to
+    /// roll back the empty account and remove its data store.
+    @discardableResult
+    func addAccount(label: String? = nil) -> Account {
+        let placeholder = label ?? String(localized: "Claude account")
+        let acct = Account(label: placeholder)
+        accounts.append(acct)
+        statesByAccount[acct.id] = AccountState()
+        AccountStore.saveAccounts(accounts)
+        // Mark the new one active so the freshly built service is the live one.
+        // Cancel any in-flight work tied to the previous account.
+        fetchTask?.cancel(); fetchTask = nil
+        timer?.cancel(); timer = nil
+        isLoading = false
+        activeAccountID = acct.id
+        AccountStore.saveActiveID(acct.id)
+        buildActiveService(for: acct)
+        return acct
+    }
+
+    /// Removes a partially-added account if the login flow was cancelled before a session
+    /// was captured. Wipes the unused `WKWebsiteDataStore` and the `accounts` row.
+    func cancelPendingAdd(_ acct: Account) {
+        guard accounts.contains(where: { $0.id == acct.id }),
+              statesByAccount[acct.id]?.usage == nil,
+              statesByAccount[acct.id]?.accountInfo == nil else { return }
+        removeAccount(acct.id)
+    }
+
+    /// Removes an account: tears down its API service if active, deletes its persistent data
+    /// store, removes its namespaced UserDefaults entries, and switches to the next account
+    /// (or the empty state if none remains).
+    func removeAccount(_ id: UUID) {
+        let wasActive = (activeAccountID == id)
+        if wasActive {
+            fetchTask?.cancel(); fetchTask = nil
+            timer?.cancel(); timer = nil
+            isLoading = false
+            apiService?.tearDown()
+            apiService = nil
+        }
+        // Dismiss any of this account's toasts before dropping its state.
+        if let s = statesByAccount[id] {
+            for tid in s.paceToastIDs.values { ToastWindowController.shared.dismiss(id: tid) }
+        }
+        let dataStoreID = accounts.first(where: { $0.id == id })?.dataStoreIdentifier
+        accounts.removeAll { $0.id == id }
+        statesByAccount.removeValue(forKey: id)
+        UserDefaults.standard.removeObject(forKey: AccountStore.usageHistoryKey(for: id))
+        AccountStore.saveAccounts(accounts)
+        if let dataStoreID {
+            WKWebsiteDataStore.remove(forIdentifier: dataStoreID) { err in
+                if let err { AppLogger.shared.error("data store remove failed: \(err.localizedDescription)") }
+            }
+        }
+        if wasActive {
+            if let next = accounts.first {
+                activeAccountID = next.id
+                AccountStore.saveActiveID(next.id)
+                buildActiveService(for: next)
+                startSession()
+            } else {
+                activeAccountID = nil
+                AccountStore.saveActiveID(nil)
+                cachedMenuBarKey = ""
             }
         }
     }
 
+    /// Renames an account label. Local-only — claude.ai is not notified.
+    /// Reassigns the whole array so `@Observable` reliably re-emits for views that read
+    /// `viewModel.accounts.first(where:).label` (subscript-mutate-and-set on the array can
+    /// occasionally fail to fire downstream redraws in `Menu` labels).
+    func renameAccount(_ id: UUID, to newLabel: String) {
+        let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let idx = accounts.firstIndex(where: { $0.id == id }) else { return }
+        var copy = accounts
+        copy[idx].label = trimmed
+        accounts = copy
+        AccountStore.saveAccounts(accounts)
+    }
+
+    /// Back-compat wrapper for callers that still use `signOut()` semantics — removes the
+    /// currently active account.
+    func signOut() {
+        if let id = activeAccountID { removeAccount(id) }
+    }
+
+    // MARK: - Migration
+
+    /// One-shot migration from the legacy single-account model: copies any `sessionKey` and
+    /// related cookies from `WKWebsiteDataStore.default()` into a freshly created
+    /// per-identifier store, registers the corresponding `Account`, and migrates the legacy
+    /// `usageHistory` UserDefaults key into the per-account namespace.
+    private func migrateLegacySessionIfPresent() async {
+        defer { isMigrating = false }
+        let cookies = await WKWebsiteDataStore.default().httpCookieStore.allCookies()
+        let claudeCookies = cookies.filter { $0.domain.contains("claude.ai") || $0.domain.contains("anthropic.com") }
+        let hasSession = claudeCookies.contains { $0.name == "sessionKey" }
+
+        guard hasSession else {
+            UserDefaults.standard.set(1, forKey: "accountsMigrationVersion")
+            AppLogger.shared.info("migration: no legacy session found, starting empty")
+            return
+        }
+
+        let newID = UUID()
+        let dataStoreID = UUID()
+        let store = WKWebsiteDataStore(forIdentifier: dataStoreID)
+        // Copy cookies into the new identified store.
+        for c in claudeCookies {
+            await store.httpCookieStore.setCookie(c)
+        }
+        // Verify the copy: re-read sessionKey from the new store.
+        let copiedCookies = await store.httpCookieStore.allCookies()
+        let migrated = copiedCookies.contains { $0.name == "sessionKey" && ($0.domain.contains("claude.ai") || $0.domain.contains("anthropic.com")) }
+        guard migrated else {
+            UserDefaults.standard.set(1, forKey: "accountsMigrationVersion")
+            AppLogger.shared.error("migration: cookie copy failed, falling back to empty roster")
+            return
+        }
+
+        let acct = Account(id: newID, label: String(localized: "Claude account"), dataStoreIdentifier: dataStoreID)
+        accounts = [acct]
+        AccountStore.saveAccounts(accounts)
+        activeAccountID = newID
+        AccountStore.saveActiveID(newID)
+
+        // Move legacy usageHistory blob into the per-account namespace.
+        if let legacyData = UserDefaults.standard.data(forKey: "usageHistory") {
+            UserDefaults.standard.set(legacyData, forKey: AccountStore.usageHistoryKey(for: newID))
+            UserDefaults.standard.removeObject(forKey: "usageHistory")
+            if let decoded = try? JSONDecoder().decode([UsageDataPoint].self, from: legacyData) {
+                statesByAccount[newID, default: .init()].usageHistory = decoded
+            }
+        } else {
+            statesByAccount[newID, default: .init()].usageHistory = []
+        }
+
+        UserDefaults.standard.set(1, forKey: "accountsMigrationVersion")
+        AppLogger.shared.info("migration: imported legacy session as account \(newID.uuidString.prefix(8))")
+
+        buildActiveService(for: acct)
+        startSession()
+    }
+
+    /// Persists per-account chart history to the namespaced UserDefaults key.
+    private func saveUsageHistory(_ history: [UsageDataPoint], for accountID: UUID) {
+        if let data = try? JSONEncoder().encode(history) {
+            UserDefaults.standard.set(data, forKey: AccountStore.usageHistoryKey(for: accountID))
+        }
+    }
+
+    /// Loads per-account chart history from the namespaced UserDefaults key.
+    private func loadUsageHistory(for accountID: UUID) -> [UsageDataPoint] {
+        guard let data = UserDefaults.standard.data(forKey: AccountStore.usageHistoryKey(for: accountID)),
+              let decoded = try? JSONDecoder().decode([UsageDataPoint].self, from: data) else { return [] }
+        return decoded
+    }
+
+    /// Writes API-derived account info back into the persisted roster (display name when the
+    /// label is still the placeholder, plus email and subscription badge).
+    private func applyAccountInfoToRoster(id: UUID, info: AccountInfo) {
+        guard let idx = accounts.firstIndex(where: { $0.id == id }) else { return }
+        if accounts[idx].label == String(localized: "Claude account") || accounts[idx].label.isEmpty {
+            accounts[idx].label = info.displayName
+        }
+        accounts[idx].email = info.emailAddress
+        accounts[idx].subscriptionLabel = info.subscriptionLabel
+        AccountStore.saveAccounts(accounts)
+    }
+
     // MARK: - Polling
 
-    /// Cancels any existing timer and starts a fresh adaptive polling cycle.
+    /// Cancels any existing timer and starts a fresh adaptive polling cycle for the active account.
     func startPolling() {
         timer?.cancel()
         timer = nil
-        consecutiveErrors = 0
+        guard let id = activeAccountID else { return }
+        statesByAccount[id, default: .init()].consecutiveErrors = 0
         guard isAuthenticated else { return }
         fetchUsage()
     }
 
-    /// Fetches the latest usage data, detects resets, and schedules the next adaptive poll.
+    /// Fetches the latest usage data for the active account, detects resets, and schedules the
+    /// next adaptive poll. The account ID is captured at task start so a mid-fetch account
+    /// switch deposits the response into the right bucket (and the next active poll triggers
+    /// independently for the new account).
     func fetchUsage() {
-        guard isAuthenticated else { return }
+        guard isAuthenticated, let id = activeAccountID, let svc = apiService else { return }
         if isDataStale { AppLogger.shared.info("fetchUsage: refreshing stale data (resetsAt passed since last fetch)") }
         fetchTask?.cancel()
         isLoading = true
@@ -310,27 +556,29 @@ final class UsageViewModel {
             guard let self else { return }
             var shouldSchedule = false
             do {
-                let response = try await apiService.fetchUsage()
+                let response = try await svc.fetchUsage()
                 guard !Task.isCancelled else { return }
-                checkForResets(old: usage, new: response)
-                recordHistory(response)
-                appendDataPoint(response)
-                checkPaceNotifications(response)
-                usage = response
-                error = nil
-                lastUpdated = Date()
-                consecutiveErrors = 0
+                let oldUsage = statesByAccount[id]?.usage
+                checkForResets(accountID: id, old: oldUsage, new: response)
+                recordHistory(accountID: id, response: response)
+                appendDataPoint(accountID: id, response: response)
+                checkPaceNotifications(accountID: id, response: response)
+                statesByAccount[id, default: .init()].usage = response
+                statesByAccount[id, default: .init()].error = nil
+                statesByAccount[id, default: .init()].lastUpdated = Date()
+                statesByAccount[id, default: .init()].consecutiveErrors = 0
+                statesByAccount[id, default: .init()].sessionExpired = false
                 shouldSchedule = true
             } catch let err as ClaudeAPIService.APIError {
                 guard !Task.isCancelled else { return }
-                consecutiveErrors += 1
-                AppLogger.shared.error("fetchUsage APIError (#\(consecutiveErrors)): \(err.localizedDescription)")
-                error = err.localizedDescription
+                let n = (statesByAccount[id]?.consecutiveErrors ?? 0) + 1
+                statesByAccount[id, default: .init()].consecutiveErrors = n
+                AppLogger.shared.error("fetchUsage APIError (#\(n)): \(err.localizedDescription)")
+                statesByAccount[id, default: .init()].error = err.localizedDescription
                 if case .unauthorized = err {
-                    if consecutiveErrors > 1 {
-                        isAuthenticated = false
-                        timer?.cancel()
-                        timer = nil
+                    if n > 1 {
+                        statesByAccount[id, default: .init()].sessionExpired = true
+                        timer?.cancel(); timer = nil
                     } else {
                         // First 401: mapJSError already cleared isPageReady;
                         // next poll reloads the page and retries automatically.
@@ -341,13 +589,15 @@ final class UsageViewModel {
                 }
             } catch {
                 guard !Task.isCancelled else { return }
-                consecutiveErrors += 1
-                AppLogger.shared.error("fetchUsage unexpected error (#\(consecutiveErrors)): \(error)")
-                self.error = error.localizedDescription
+                let n = (statesByAccount[id]?.consecutiveErrors ?? 0) + 1
+                statesByAccount[id, default: .init()].consecutiveErrors = n
+                AppLogger.shared.error("fetchUsage unexpected error (#\(n)): \(error)")
+                statesByAccount[id, default: .init()].error = error.localizedDescription
                 shouldSchedule = true
             }
-            isLoading = false
-            if shouldSchedule { scheduleNextPoll() }
+            // Only flip the spinner off if this fetch was for the still-active account.
+            if id == activeAccountID { isLoading = false }
+            if shouldSchedule, id == activeAccountID { scheduleNextPoll() }
         }
     }
 
@@ -360,13 +610,15 @@ final class UsageViewModel {
     ///   - Utilization < 100% without pace: 3–10 s based on utilization level
     ///   Backoff adds min(consecutiveErrors × 10, 60) s on top.
     private func scheduleNextPoll() {
+        guard let id = activeAccountID else { return }
         timer?.cancel()
         let base = computeAdaptiveInterval()
-        let backoff = consecutiveErrors > 0 ? min(Double(consecutiveErrors) * 10, 60) : 0
+        let errs = statesByAccount[id]?.consecutiveErrors ?? 0
+        let backoff = errs > 0 ? min(Double(errs) * 10, 60) : 0
         let interval = base + backoff
-        if consecutiveErrors > 0 {
+        if errs > 0 {
             let stem = (error ?? "Error").components(separatedBy: " (retry in ").first ?? "Error"
-            error = String(format: String(localized: "%@ (retry in %ds)"), stem, Int(interval))
+            statesByAccount[id, default: .init()].error = String(format: String(localized: "%@ (retry in %ds)"), stem, Int(interval))
         }
         AppLogger.shared.info("poll: next in \(String(format: "%.1f", interval))s (base=\(String(format: "%.1f", base))s util=\(String(format: "%.0f", maxUtilization))%)")
         timer = Task { [weak self] in
@@ -487,12 +739,12 @@ final class UsageViewModel {
         return urgencyNSColor(effectiveUrgency)
     }
 
-    private func urgencyNSColor(_ urgency: Double) -> NSColor {
+    func urgencyNSColor(_ urgency: Double) -> NSColor {
         let t = max(0, min(1, urgency))
         return NSColor(hue: 0.33 * (1 - t), saturation: 0.85, brightness: 0.9, alpha: 1.0)
     }
 
-    private func displayedWindowPaceUrgency() -> Double {
+    func displayedWindowPaceUrgency() -> Double {
         let key: String
         let window: UsageWindow?
         switch menuBarWindow {
@@ -517,21 +769,26 @@ final class UsageViewModel {
     /// - Utilization has dropped below 5 % (guards against a timestamp refresh without an actual reset).
     ///
     /// On the first fetch (`old == nil`) timestamps are recorded as a baseline without firing a notification.
-    private func checkForResets(old: UsageResponse?, new: UsageResponse) {
+    private func checkForResets(accountID: UUID, old: UsageResponse?, new: UsageResponse) {
         guard old != nil else {
-            recordResetsAt(new)
+            recordResetsAt(accountID: accountID, response: new)
             return
         }
 
-        guard resetSoundEnabled || notifyToast else {
-            recordResetsAt(new)
+        // Only fire reset notifications for the *active* account; idle accounts shouldn't
+        // surface toasts/sounds for resets the user can't act on right now.
+        let isActive = (accountID == activeAccountID)
+
+        guard isActive, resetSoundEnabled || notifyToast else {
+            recordResetsAt(accountID: accountID, response: new)
             return
         }
 
+        let prev = statesByAccount[accountID]?.previousResetsAt ?? [:]
         var resets: [String] = []
 
         if notify5Hour,
-           let oldDate = previousResetsAt["five_hour"],
+           let oldDate = prev["five_hour"],
            let newWindow = new.fiveHour,
            let newDate = newWindow.resetsAtDate,
            newDate.timeIntervalSince(oldDate) > 3600,
@@ -540,7 +797,7 @@ final class UsageViewModel {
         }
 
         if notify7Day,
-           let oldDate = previousResetsAt["seven_day"],
+           let oldDate = prev["seven_day"],
            let newWindow = new.sevenDay,
            let newDate = newWindow.resetsAtDate,
            newDate.timeIntervalSince(oldDate) > 3600,
@@ -548,16 +805,20 @@ final class UsageViewModel {
             resets.append(String(localized: "7-Day Window"))
         }
 
-        recordResetsAt(new)
+        recordResetsAt(accountID: accountID, response: new)
 
         if !resets.isEmpty {
             dispatchNotifications(windows: resets)
         }
     }
 
-    private func recordResetsAt(_ response: UsageResponse) {
-        if let w = response.fiveHour, let d = w.resetsAtDate { previousResetsAt["five_hour"] = d }
-        if let w = response.sevenDay,  let d = w.resetsAtDate { previousResetsAt["seven_day"]  = d }
+    private func recordResetsAt(accountID: UUID, response: UsageResponse) {
+        if let w = response.fiveHour, let d = w.resetsAtDate {
+            statesByAccount[accountID, default: .init()].previousResetsAt["five_hour"] = d
+        }
+        if let w = response.sevenDay, let d = w.resetsAtDate {
+            statesByAccount[accountID, default: .init()].previousResetsAt["seven_day"] = d
+        }
     }
 
     // MARK: - Notification Dispatch
@@ -595,22 +856,24 @@ final class UsageViewModel {
     /// Readings older than 15 minutes are discarded. If utilization for a window drops by
     /// more than 20 percentage points compared to the last recorded value, the history is
     /// cleared first — this handles window resets, which drop utilization back to near zero.
-    private func recordHistory(_ response: UsageResponse) {
+    private func recordHistory(accountID: UUID, response: UsageResponse) {
         let now = Date()
         let cutoff = now.addingTimeInterval(-5 * 60)
 
         func append(key: String, utilization: Double?) {
             guard let utilization else { return }
-            var history = utilizationHistory[key] ?? []
+            var s = statesByAccount[accountID] ?? .init()
+            var history = s.utilizationHistory[key] ?? []
             if let last = history.last, last.1 - utilization > 20 || (utilization < 5 && last.1 >= 5) {
                 history = []
-                paceWarned.remove(key)
-                if let tid = paceToastIDs.removeValue(forKey: key) {
+                s.paceWarned.remove(key)
+                if let tid = s.paceToastIDs.removeValue(forKey: key) {
                     ToastWindowController.shared.dismiss(id: tid)
                 }
             }
             history.append((now, utilization))
-            utilizationHistory[key] = history.filter { $0.0 >= cutoff }
+            s.utilizationHistory[key] = history.filter { $0.0 >= cutoff }
+            statesByAccount[accountID] = s
         }
 
         append(key: "five_hour", utilization: response.fiveHour?.utilization)
@@ -620,9 +883,12 @@ final class UsageViewModel {
     /// Fires a pace alert through all enabled channels when a watched window is on track to
     /// fill before it resets. Each window can only trigger one alert per window period;
     /// the warned flag resets automatically when utilization drops (i.e. the window resets).
-    private func checkPaceNotifications(_ response: UsageResponse) {
-        guard notifyPace else {
-            paceWarned.removeAll()
+    private func checkPaceNotifications(accountID: UUID, response: UsageResponse) {
+        // Only the active account should trigger pace toasts/sounds.
+        let isActive = (accountID == activeAccountID)
+
+        guard notifyPace, isActive else {
+            statesByAccount[accountID, default: .init()].paceWarned.removeAll()
             return
         }
 
@@ -633,56 +899,64 @@ final class UsageViewModel {
 
         for (key, name, watched) in candidates {
             guard watched else { continue }
-            let paceData = pace(for: key)
+            let paceData = pace(accountID: accountID, key: key)
             let isConcerning = paceData.flatMap(\.projectedHours).map { $0 * 60 < paceWarningMinutes } ?? false
-            if isConcerning, !paceWarned.contains(key), let pd = paceData, let projHours = pd.projectedHours {
-                paceWarned.insert(key)
+            var s = statesByAccount[accountID] ?? .init()
+            if isConcerning, !s.paceWarned.contains(key), let pd = paceData, let projHours = pd.projectedHours {
+                s.paceWarned.insert(key)
                 let minsLeft = max(1, Int(projHours * 60))
                 let title = String(localized: "Approaching usage limit")
                 let body  = String(format: String(localized: "%@ fills in %d min at %@"), name, minsLeft, paceRateUnit.format(pd.rate))
                 if paceToastEnabled {
-                    paceToastIDs[key] = ToastWindowController.shared.show(title: title, message: body,
+                    s.paceToastIDs[key] = ToastWindowController.shared.show(title: title, message: body,
                         icon: "exclamationmark.triangle.fill", iconColor: .orange,
                         duration: paceToastDuration, permanent: paceToastPermanent)
                 }
                 if paceSoundEnabled { NSSound(named: .init("Basso"))?.play() }
-            } else if !isConcerning, paceWarned.contains(key) {
+            } else if !isConcerning, s.paceWarned.contains(key) {
                 // Pace improved past the threshold — dismiss the alert even if set to permanent.
-                if let tid = paceToastIDs.removeValue(forKey: key) {
+                if let tid = s.paceToastIDs.removeValue(forKey: key) {
                     ToastWindowController.shared.dismiss(id: tid)
                 }
-                if paceData == nil { paceWarned.remove(key) }
+                if paceData == nil { s.paceWarned.remove(key) }
             }
+            statesByAccount[accountID] = s
         }
     }
 
-    /// Returns the current consumption rate and projected time to full for a window.
-    ///
-    /// Requires at least two minutes of history to produce a meaningful rate.
-    /// Returns `nil` when the rate is negligible (≤ 0.1 %/hr) or data is insufficient.
-    ///
-    /// - Parameter key: The window key — `"five_hour"` or `"seven_day"`.
+    /// Returns the current consumption rate and projected time to full for a window of the
+    /// active account. View code calls this; internal callers that have an explicit account
+    /// id should use `pace(accountID:key:)`.
     func pace(for key: String) -> (rate: Double, projectedHours: Double?)? {
-        guard let history = utilizationHistory[key] else { return nil }
+        guard let id = activeAccountID else { return nil }
+        return pace(accountID: id, key: key)
+    }
+
+    /// Variant that explicitly targets a specific account's history bucket.
+    private func pace(accountID: UUID, key: String) -> (rate: Double, projectedHours: Double?)? {
+        guard let history = statesByAccount[accountID]?.utilizationHistory[key] else { return nil }
         return computePace(history: history, lambda: 2.0)
     }
 
-    private func appendDataPoint(_ response: UsageResponse) {
+    private func appendDataPoint(accountID: UUID, response: UsageResponse) {
         let now = Date()
-        if let last = lastHistoryTimestamp, now.timeIntervalSince(last) < 300 { return }
-        lastHistoryTimestamp = now
+        var s = statesByAccount[accountID] ?? .init()
+        if let last = s.lastHistoryTimestamp, now.timeIntervalSince(last) < 300 { return }
+        s.lastHistoryTimestamp = now
         let point = UsageDataPoint(
             timestamp: now,
             fiveHour: response.fiveHour?.utilization,
             sevenDay: response.sevenDay?.utilization,
-            fiveHourPace: pace(for: "five_hour")?.rate,
-            sevenDayPace: pace(for: "seven_day")?.rate
+            fiveHourPace: pace(accountID: accountID, key: "five_hour")?.rate,
+            sevenDayPace: pace(accountID: accountID, key: "seven_day")?.rate
         )
         let cutoff = now.addingTimeInterval(-30 * 24 * 3600)
-        var history = usageHistory.filter { $0.timestamp >= cutoff }
+        var history = s.usageHistory.filter { $0.timestamp >= cutoff }
         history.append(point)
         if history.count > 8640 { history = Array(history.suffix(8640)) }
-        usageHistory = history
+        s.usageHistory = history
+        statesByAccount[accountID] = s
+        saveUsageHistory(history, for: accountID)
     }
 
     // MARK: - Update Check
@@ -882,71 +1156,5 @@ final class UsageViewModel {
             case .installationFailed: return String(localized: "Installation failed")
             }
         }
-    }
-
-}
-
-// MARK: - Menu Bar Image
-
-extension UsageViewModel {
-    private var menuBarPaceText: String? {
-        guard showPaceMenuBar, isAuthenticated, usage != nil, !isDataStale else { return nil }
-        guard displayedUtilization < 100 else { return nil }
-        let key: String
-        switch menuBarWindow {
-        case .fiveHour: key = "five_hour"
-        case .sevenDay:  key = "seven_day"
-        }
-        guard let paceData = pace(for: key) else { return nil }
-        return paceRateUnit.format(paceData.rate, prefix: true, short: true)
-    }
-
-    private var menuBarPaceColor: NSColor {
-        urgencyNSColor(displayedWindowPaceUrgency())
-    }
-
-    var menuBarImage: NSImage {
-        let icon = statusIcon
-        let text = statusText
-        let color = statusColor
-        let paceText = menuBarPaceText
-        let paceColor = menuBarPaceColor
-        let appearance = NSApp.effectiveAppearance.name.rawValue
-        let paceKey = paceText.map { $0 + paceColor.description } ?? ""
-        let key = icon + text + color.description + paceKey + appearance
-        if key == cachedMenuBarKey { return cachedMenuBarImage }
-        cachedMenuBarKey = key
-        cachedMenuBarImage = buildMenuBarImage(iconName: icon, text: text, color: color, paceText: paceText, paceColor: paceColor)
-        return cachedMenuBarImage
-    }
-
-    private func buildMenuBarImage(iconName: String, text: String, color: NSColor, paceText: String? = nil, paceColor: NSColor = .labelColor) -> NSImage {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [color, .labelColor]))
-        let symbolImage = NSImage(systemSymbolName: iconName, accessibilityDescription: nil)?
-            .withSymbolConfiguration(symbolConfig) ?? NSImage()
-        let symbolSize = symbolImage.size
-        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor]
-        let textSize = (text as NSString).size(withAttributes: attrs)
-        let paceAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: paceColor]
-        let paceSize = paceText.map { ($0 as NSString).size(withAttributes: paceAttrs) } ?? .zero
-        let spacing: CGFloat = 3
-        let paceSpacing: CGFloat = paceText != nil ? 4 : 0
-        let totalWidth = symbolSize.width + spacing + textSize.width + paceSpacing + paceSize.width
-        let height = max(symbolSize.height, textSize.height)
-        let composed = NSImage(size: NSSize(width: totalWidth, height: height), flipped: false) { rect in
-            let iconY = (rect.height - symbolSize.height) / 2
-            symbolImage.draw(in: NSRect(x: 0, y: iconY, width: symbolSize.width, height: symbolSize.height))
-            let textY = (rect.height - textSize.height) / 2
-            (text as NSString).draw(at: NSPoint(x: symbolSize.width + spacing, y: textY), withAttributes: attrs)
-            if let paceText {
-                let paceX = symbolSize.width + spacing + textSize.width + paceSpacing
-                let paceY = (rect.height - paceSize.height) / 2
-                (paceText as NSString).draw(at: NSPoint(x: paceX, y: paceY), withAttributes: paceAttrs)
-            }
-            return true
-        }
-        return composed
     }
 }

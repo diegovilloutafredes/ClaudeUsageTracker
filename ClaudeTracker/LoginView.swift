@@ -13,21 +13,33 @@ final class LoginWindowController {
     private var window: NSWindow?
     private var popupWindow: NSWindow?
     private var popupWindowObserver: NSObjectProtocol?
+    private var loginWindowObserver: NSObjectProtocol?
+    private var sessionFound = false
+    private var onCancel: (() -> Void)?
 
     /// Opens the sign-in window, or focuses it if already visible.
     ///
     /// - Parameters:
-    ///   - apiService: Provides the `WKWebView` to embed and the cookie-polling API.
+    ///   - apiService: Provides the `WKWebView` to embed and the cookie-polling API. The web
+    ///     view's data store determines which account's cookie jar receives the new session.
     ///   - onSessionFound: Called on the main thread once a session cookie is detected.
     ///     The window closes automatically 1.5 s after this callback fires to let the
     ///     user see the success state before it disappears.
-    func open(apiService: ClaudeAPIService, onSessionFound: @escaping (String) -> Void) {
+    ///   - onCancel: Called if the user closes the window before any session was captured.
+    ///     Used by `addAccount` to roll back the placeholder account row.
+    func open(
+        apiService: ClaudeAPIService,
+        onSessionFound: @escaping (String) -> Void,
+        onCancel: (() -> Void)? = nil
+    ) {
         apiService.onPopupRequested = { [weak self] popupView, _ in
             self?.showPopup(webView: popupView)
         }
         apiService.onPopupDismissed = { [weak self] in
             self?.closePopup()
         }
+        sessionFound = false
+        self.onCancel = onCancel
 
         if let existing = window, existing.isVisible {
             existing.makeKeyAndOrderFront(nil)
@@ -37,7 +49,8 @@ final class LoginWindowController {
 
         let loginView = LoginView(
             apiService: apiService,
-            onSessionFound: { key in
+            onSessionFound: { [weak self] key in
+                self?.sessionFound = true
                 onSessionFound(key)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
                     self?.close()
@@ -57,6 +70,24 @@ final class LoginWindowController {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
         self.window = window
+
+        // If the user closes the window without ever capturing a session, run the rollback.
+        loginWindowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if !self.sessionFound { self.onCancel?() }
+                self.sessionFound = false
+                self.onCancel = nil
+                if let observer = self.loginWindowObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    self.loginWindowObserver = nil
+                }
+            }
+        }
     }
 
     func close() {
